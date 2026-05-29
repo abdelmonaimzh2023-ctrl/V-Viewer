@@ -66,6 +66,9 @@ int window_create(float x, float y, float w, float h, const char* title) {
 }
 
 // ========== إغلاق نافذة ==========
+// Forward declaration
+bool window_focus(int id);
+
 bool window_close(int id) {
     for (auto it = windows.begin(); it != windows.end(); ++it) {
         if (it->id == id) {

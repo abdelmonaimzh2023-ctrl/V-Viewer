@@ -1,3 +1,4 @@
+#include "android_native_app_glue.h"
 #include <android/log.h>
 #include <EGL/egl.h>
 #include <GLES3/gl31.h>
@@ -7,7 +8,6 @@
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
-// دوال وبيانات من theme.cpp
 extern "C" {
     struct Theme {
         float bg_r, bg_g, bg_b;
@@ -18,11 +18,8 @@ extern "C" {
     extern Theme* get_current_theme();
     extern void set_theme(int index);
     extern void auto_detect_quality();
-    extern int get_current_fps_target();
-    extern void adjust_quality_if_needed(int current_fps);
 }
 
-// هيكل الجودة
 enum QualityLevel {
     QUALITY_ULTRA  = 0,
     QUALITY_HIGH   = 1,
@@ -96,7 +93,8 @@ extern "C" void android_main(struct android_app* app) {
     set_theme(0);
     LOGI("V-Viewer starting...");
     while (true) {
-        int ident, events;
+        int ident;
+        int events;
         android_poll_source* source;
         while ((ident = ALooper_pollAll(0, nullptr, &events, (void**)&source)) >= 0) {
             if (source != nullptr) source->process(app, source);

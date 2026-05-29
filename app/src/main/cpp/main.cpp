@@ -1,5 +1,4 @@
 #include <android/log.h>
-#include <android_native_app_glue.h>
 #include <EGL/egl.h>
 #include <GLES3/gl31.h>
 #include <chrono>
@@ -8,13 +7,22 @@
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
-struct Theme {
-    float bg_r, bg_g, bg_b;
-    float accent_r, accent_g, accent_b;
-    float corner_radius;
-    float glow_intensity;
-};
+// دوال وبيانات من theme.cpp
+extern "C" {
+    struct Theme {
+        float bg_r, bg_g, bg_b;
+        float accent_r, accent_g, accent_b;
+        float corner_radius;
+        float glow_intensity;
+    };
+    extern Theme* get_current_theme();
+    extern void set_theme(int index);
+    extern void auto_detect_quality();
+    extern int get_current_fps_target();
+    extern void adjust_quality_if_needed(int current_fps);
+}
 
+// هيكل الجودة
 enum QualityLevel {
     QUALITY_ULTRA  = 0,
     QUALITY_HIGH   = 1,
@@ -37,15 +45,6 @@ QualitySettings quality_presets[] = {
     {15,  false, false, false, false, false, 8}
 };
 
-Theme themes[] = {
-    {0.05f, 0.0f, 0.1f,  0.4f, 0.0f, 1.0f, 16.0f, 1.5f},
-    {0.02f, 0.02f, 0.05f, 0.0f, 1.0f, 0.8f, 14.0f, 1.8f},
-    {0.08f, 0.0f, 0.0f,  1.0f, 0.2f, 0.4f, 18.0f, 1.3f},
-    {0.0f, 0.05f, 0.0f,   0.0f, 1.0f, 0.3f, 12.0f, 2.0f}
-};
-
-static int current_theme = 0;
-static Theme* active_theme = &themes[0];
 static int current_quality = QUALITY_HIGH;
 static QualitySettings* active_quality = &quality_presets[QUALITY_HIGH];
 static std::chrono::high_resolution_clock::time_point last_frame;
@@ -54,29 +53,11 @@ static float fps_timer = 0.0f;
 static int frame_count = 0;
 static int current_fps = 0;
 
-int detect_cpu_cores() { return get_nprocs_conf(); }
-
 void set_quality(int level) {
     if (level >= QUALITY_ULTRA && level <= QUALITY_MIN) {
         current_quality = level;
         active_quality = &quality_presets[level];
     }
-}
-
-void set_theme(int index) {
-    if (index >= 0 && index < 4) {
-        current_theme = index;
-        active_theme = &themes[index];
-    }
-}
-
-void auto_detect_quality() {
-    int cores = detect_cpu_cores();
-    if (cores >= 8)       set_quality(QUALITY_ULTRA);
-    else if (cores >= 6)  set_quality(QUALITY_HIGH);
-    else if (cores >= 4)  set_quality(QUALITY_MEDIUM);
-    else if (cores >= 2)  set_quality(QUALITY_LOW);
-    else                  set_quality(QUALITY_MIN);
 }
 
 static void render_frame() {
@@ -93,7 +74,8 @@ static void render_frame() {
             if (current_quality < QUALITY_MIN) set_quality(current_quality + 1);
         }
     }
-    glClearColor(active_theme->bg_r, active_theme->bg_g, active_theme->bg_b, 1.0f);
+    Theme* theme = get_current_theme();
+    glClearColor(theme->bg_r, theme->bg_g, theme->bg_b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
@@ -102,7 +84,7 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
         case APP_CMD_INIT_WINDOW:
             last_frame = std::chrono::high_resolution_clock::now();
             auto_detect_quality();
-            LOGI("V-Viewer initialized - Theme: %d, Quality: %d, FPS: %d", current_theme, current_quality, active_quality->target_fps);
+            LOGI("V-Viewer initialized - Quality: %d, FPS: %d", current_quality, active_quality->target_fps);
             break;
         case APP_CMD_TERM_WINDOW:
             break;
@@ -114,8 +96,7 @@ extern "C" void android_main(struct android_app* app) {
     set_theme(0);
     LOGI("V-Viewer starting...");
     while (true) {
-        int ident;
-        int events;
+        int ident, events;
         android_poll_source* source;
         while ((ident = ALooper_pollAll(0, nullptr, &events, (void**)&source)) >= 0) {
             if (source != nullptr) source->process(app, source);

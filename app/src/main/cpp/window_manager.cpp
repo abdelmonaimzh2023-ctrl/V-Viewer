@@ -1,6 +1,7 @@
+#include <android/log.h>
 #include <vector>
 #include <algorithm>
-#include <android_log.h>
+#include <android/log.h>
 
 #define TAG "V-Viewer-WinMgr"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)

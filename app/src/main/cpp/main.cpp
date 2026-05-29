@@ -1,4 +1,5 @@
 #include <android_native_app_glue.h>
+#include <android_native_app_glue.h>
 #include <EGL/egl.h>
 #include <GLES3/gl31.h>
 #include <chrono>

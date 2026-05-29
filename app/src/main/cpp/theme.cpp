@@ -1,4 +1,4 @@
-#include <android_log.h>
+#include <android/log.h>
 #include <string>
 
 #define TAG "V-Viewer-Theme"

@@ -1,6 +1,7 @@
+#include <android/log.h>
 #include <cmath>
 #include <chrono>
-#include <android_log.h>
+#include <android/log.h>
 
 #define TAG "V-Viewer-Anim"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)

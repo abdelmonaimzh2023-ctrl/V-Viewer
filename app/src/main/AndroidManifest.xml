@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.vviewer"
+    android:versionCode="1"
+    android:versionName="1.0.0">
+
+    <!-- ========== الصلاحيات ========== -->
+    
+    <!-- الشبكة (WiFi + بيانات) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    
+    <!-- بلوتوث -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    
+    <!-- تخزين -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    
+    <!-- الكاميرا -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    
+    <!-- ميكروفون -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    
+    <!-- موقع -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
+    <!-- مستشعرات -->
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    
+    <!-- إشعارات -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- تشغيل في الخلفية -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
+    <!-- ميزات الجهاز -->
+    <uses-feature android:name="android.hardware.gpu" android:required="true" />
+    <uses-feature android:name="android.hardware.opengles" android:required="true" />
+    <uses-feature android:glEsVersion="0x00030001" android:required="true" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor" android:required="false" />
+
+    <!-- ========== التطبيق ========== -->
+    <application
+        android:name=".VViewerApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="V-Viewer"
+        android:theme="@style/Theme.VViewer"
+        android:hardwareAccelerated="true"
+        android:supportsRtl="true"
+        android:resizeableActivity="true"
+        android:largeHeap="true">
+
+        <!-- النشاط الرئيسي -->
+        <activity
+            android:name="com.vviewer.MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:screenOrientation="landscape"
+            android:launchMode="singleInstance"
+            android:windowSoftInputMode="adjustResize">
+            
+            <!-- فلتر الدخول -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <!-- خدمة Wayland في الخلفية -->
+        <service
+            android:name="com.vviewer.WaylandService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync">
+        </service>
+
+    </application>
+</manifest>

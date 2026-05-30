@@ -22,25 +22,18 @@ static GLuint program = 0;
 static GLint uColorLoc = -1;
 
 static int screen_w = 1920, screen_h = 1080;
+static float time = 0.0f;
 
-// شريط علوي
 static float bar_h = 0.07f;
-
-// زر الإعدادات (ترس)
 static float gear_cx, gear_cy, gear_r;
 static bool gear_pressed = false;
-
-// زر الطرفية
 static float term_cx, term_cy;
-
-// حالة الاتصال
 static bool connected = false;
 
 static void update_layout() {
-    gear_r = bar_h * 0.5f; // ترس أكبر
+    gear_r = bar_h * 0.5f;
     gear_cx = 0.94f;
     gear_cy = 1.0f - bar_h / 2.0f;
-
     term_cx = gear_cx - gear_r * 3.5f;
     term_cy = gear_cy;
 }
@@ -76,7 +69,6 @@ static void init_shaders() {
     uColorLoc = glGetUniformLocation(program, "uColor");
 }
 
-// رسم خط
 static void draw_line(float x1, float y1, float x2, float y2, float t, float r, float g, float b, float a) {
     float dx = x2 - x1, dy = y2 - y1;
     float len = sqrtf(dx*dx + dy*dy);
@@ -92,7 +84,6 @@ static void draw_line(float x1, float y1, float x2, float y2, float t, float r, 
     glDisableVertexAttribArray(0);
 }
 
-// رسم مستطيل
 static void draw_rect(float x, float y, float w, float h, float r, float g, float b, float a) {
     float verts[] = { x,y, x+w,y, x,y-h, x+w,y-h };
     glUseProgram(program);
@@ -103,7 +94,6 @@ static void draw_rect(float x, float y, float w, float h, float r, float g, floa
     glDisableVertexAttribArray(0);
 }
 
-// رسم دائرة ممتلئة
 static void draw_circle(float cx, float cy, float r, float red, float green, float blue, float a) {
     const int seg=32;
     float verts[(seg+2)*2];
@@ -121,40 +111,39 @@ static void draw_circle(float cx, float cy, float r, float red, float green, flo
     glDisableVertexAttribArray(0);
 }
 
-// أيقونة ترس (دائرة بداخلها خطوط) - محسّنة
 static void draw_gear(float cx, float cy, float r, float r_color, float g_color, float b_color) {
-    // مربع خلفي للترس (خلفية شفافة داكنة)
     float sq = r * 1.6f;
-    draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.15f, 0.15f, 0.15f, 0.8f);
-    // إطار المربع
-    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.005f, r_color, g_color, b_color, 0.6f);
-    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.005f, r_color, g_color, b_color, 0.6f);
-    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.005f, r_color, g_color, b_color, 0.6f);
-    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.005f, r_color, g_color, b_color, 0.6f);
-    // الترس نفسه
+    // خلفية زجاجية
+    draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.1f, 0.1f, 0.15f, 0.6f);
+    // إطار مضيء
+    float glow = 0.5f + 0.2f * sinf(time * 2.0f);
+    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.003f, r_color, g_color, b_color, glow);
+    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.003f, r_color, g_color, b_color, glow);
+    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, r_color, g_color, b_color, glow);
+    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.003f, r_color, g_color, b_color, glow);
+    // الترس
     draw_circle(cx, cy, r, r_color, g_color, b_color, 1.0f);
     float t = r*0.25f;
     float len = r*0.6f;
-    draw_line(cx, cy+len, cx, cy+r*0.9f, t, 0.1f, 0.1f, 0.1f, 1.0f);
-    draw_line(cx, cy-len, cx, cy-r*0.9f, t, 0.1f, 0.1f, 0.1f, 1.0f);
-    draw_line(cx+len, cy, cx+r*0.9f, cy, t, 0.1f, 0.1f, 0.1f, 1.0f);
-    draw_line(cx-len, cy, cx-r*0.9f, cy, t, 0.1f, 0.1f, 0.1f, 1.0f);
+    draw_line(cx, cy+len, cx, cy+r*0.9f, t, 0.05f, 0.05f, 0.08f, 1.0f);
+    draw_line(cx, cy-len, cx, cy-r*0.9f, t, 0.05f, 0.05f, 0.08f, 1.0f);
+    draw_line(cx+len, cy, cx+r*0.9f, cy, t, 0.05f, 0.05f, 0.08f, 1.0f);
+    draw_line(cx-len, cy, cx-r*0.9f, cy, t, 0.05f, 0.05f, 0.08f, 1.0f);
 }
 
-// أيقونة الطرفية (مستطيل مع >_ )
 static void draw_terminal_icon(float cx, float cy, float r) {
     float sq = r * 1.6f;
-    draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.15f, 0.15f, 0.15f, 0.8f);
-    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.005f, 1.0f, 1.0f, 1.0f, 0.6f);
-    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.005f, 1.0f, 1.0f, 1.0f, 0.6f);
-    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.005f, 1.0f, 1.0f, 1.0f, 0.6f);
-    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.005f, 1.0f, 1.0f, 1.0f, 0.6f);
+    draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.1f, 0.1f, 0.15f, 0.6f);
+    float glow = 0.5f + 0.2f * sinf(time * 2.0f + 1.0f);
+    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
+    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
+    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
+    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
     draw_line(cx - r*0.5f, cy + r*0.5f, cx + r*0.7f, cy + r*0.5f, 0.02f, 0.0f, 1.0f, 1.0f, 1.0f);
     draw_line(cx - r*0.3f, cy, cx + r*0.3f, cy, 0.02f, 1.0f, 1.0f, 1.0f, 1.0f);
     draw_line(cx, cy - r*0.5f, cx + r*0.7f, cy - r*0.5f, 0.02f, 0.0f, 1.0f, 1.0f, 1.0f);
 }
 
-// فتح شاشة الإعدادات
 static void openSettings(ANativeActivity* activity) {
     JNIEnv* env;
     activity->vm->AttachCurrentThread(&env, NULL);
@@ -164,7 +153,6 @@ static void openSettings(ANativeActivity* activity) {
     activity->vm->DetachCurrentThread();
 }
 
-// فتح الطرفية
 static void openTerminal(ANativeActivity* activity) {
     JNIEnv* env;
     activity->vm->AttachCurrentThread(&env, NULL);
@@ -174,20 +162,17 @@ static void openTerminal(ANativeActivity* activity) {
     activity->vm->DetachCurrentThread();
 }
 
-// محاولة الاتصال بـ Wayland
 static void try_connect() {
     if (!connected) {
         connected = wayland_auto_connect();
-        LOGI("Wayland connection attempt: %s", connected ? "SUCCESS" : "FAILED");
+        LOGI("Wayland: %s", connected ? "CONNECTED" : "FAILED");
     }
 }
 
-// فحص لمس الزر
 static bool in_rect(float px, float py, float cx, float cy, float size) {
     return (px >= cx - size && px <= cx + size && py >= cy - size && py <= cy + size);
 }
 
-// معالج اللمس
 static int32_t handle_input(struct android_app* app, AInputEvent* event) {
     if (AInputEvent_getType(event) != AINPUT_EVENT_TYPE_MOTION) return 0;
     float px = to_ndc_x(AMotionEvent_getX(event,0));
@@ -195,7 +180,6 @@ static int32_t handle_input(struct android_app* app, AInputEvent* event) {
     int action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
 
     if (action == AMOTION_EVENT_ACTION_DOWN) {
-        // زر الإعدادات (مربع كامل)
         float sq = gear_r * 1.6f;
         if (in_rect(px, py, gear_cx, gear_cy, sq)) {
             gear_pressed = true;
@@ -203,7 +187,6 @@ static int32_t handle_input(struct android_app* app, AInputEvent* event) {
             openSettings(app->activity);
             return 1;
         }
-        // زر الطرفية
         if (in_rect(px, py, term_cx, term_cy, sq)) {
             openTerminal(app->activity);
             return 1;
@@ -219,7 +202,6 @@ static int32_t handle_input(struct android_app* app, AInputEvent* event) {
 static void init_egl(ANativeWindow* window) {
     screen_w = ANativeWindow_getWidth(window);
     screen_h = ANativeWindow_getHeight(window);
-    LOGI("Screen: %dx%d", screen_w, screen_h);
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     eglInitialize(display,0,0);
     const EGLint attribs[]={ EGL_SURFACE_TYPE,EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT,
@@ -247,11 +229,22 @@ static void term_egl() {
 }
 
 static void draw_frame() {
-    glClearColor(get_bg_r(), get_bg_g(), get_bg_b(), 1.0f);
+    time += 0.016f; // ~60 FPS
+
+    // خلفية متحركة (تدرج بطيء)
+    float bg_pulse = 0.5f + 0.5f * sinf(time * 0.3f);
+    glClearColor(get_bg_r() * (0.8f + bg_pulse * 0.2f),
+                 get_bg_g() * (0.8f + bg_pulse * 0.2f),
+                 get_bg_b() * (0.8f + bg_pulse * 0.2f), 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // شريط علوي
-    draw_rect(-1.0f, 1.0f, 2.0f, bar_h, 0.05f, 0.05f, 0.07f, 0.95f);
+    // شريط علوي زجاجي
+    draw_rect(-1.0f, 1.0f, 2.0f, bar_h, 0.05f, 0.05f, 0.07f, 0.85f);
+
+    // خط سفلي مضيء للشريط
+    float glow = 0.4f + 0.2f * sinf(time * 1.5f);
+    draw_line(-1.0f, 1.0f - bar_h, 1.0f, 1.0f - bar_h, 0.002f,
+              get_accent_r(), get_accent_g(), get_accent_b(), glow);
 
     // أيقونة الطرفية
     draw_terminal_icon(term_cx, term_cy, gear_r);
@@ -261,14 +254,14 @@ static void draw_frame() {
     if (gear_pressed) { gcol_r*=0.7f; gcol_g*=0.7f; gcol_b*=0.7f; }
     draw_gear(gear_cx, gear_cy, gear_r, gcol_r, gcol_g, gcol_b);
 
-    // مؤشر حالة الاتصال (دائرة بجوار الترس)
+    // مؤشر حالة Wayland
     float status_x = gear_cx - gear_r*7.0f;
     float status_y = gear_cy;
     float status_r = gear_r*0.4f;
     if (connected) {
-        draw_circle(status_x, status_y, status_r, 0.2f, 0.9f, 0.2f, 1.0f);
+        draw_circle(status_x, status_y, status_r, 0.2f, 0.9f, 0.2f, 0.9f);
     } else {
-        draw_circle(status_x, status_y, status_r, 0.9f, 0.2f, 0.2f, 1.0f);
+        draw_circle(status_x, status_y, status_r, 0.9f, 0.2f, 0.2f, 0.9f);
     }
 
     eglSwapBuffers(display, surface);

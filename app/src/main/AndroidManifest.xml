@@ -31,5 +31,10 @@
             android:exported="false"
             android:theme="@style/Theme.VViewer" />
 
+        <activity
+            android:name="com.vviewer.TerminalActivity"
+            android:exported="false"
+            android:theme="@style/Theme.VViewer" />
+
     </application>
 </manifest>

@@ -9,4 +9,9 @@ public class MainActivity extends NativeActivity {
         Intent intent = new Intent(this, SettingsActivity.class);
         startActivity(intent);
     }
+
+    public void openTerminal() {
+        Intent intent = new Intent(this, TerminalActivity.class);
+        startActivity(intent);
+    }
 }

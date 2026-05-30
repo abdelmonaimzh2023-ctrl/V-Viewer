@@ -1,33 +1,23 @@
 package com.vviewer;
 
-import android.app.Activity;
+import android.app.NativeActivity;
+import android.content.Intent;
 import android.os.Bundle;
-import android.widget.TextView;
-import java.io.FileWriter;
 
-public class MainActivity extends Activity {
+public class MainActivity extends NativeActivity {
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        TextView tv = new TextView(this);
-        tv.setText("Loading...");
-        setContentView(tv);
-        
-        try {
-            System.loadLibrary("vviewer");
-            writeResult("SUCCESS: libvviewer.so loaded");
-            tv.setText("SUCCESS: Library loaded. V-Viewer works!");
-        } catch (UnsatisfiedLinkError e) {
-            writeResult("ERROR: " + e.toString());
-            tv.setText("ERROR: " + e.getMessage());
-        }
     }
 
-    private void writeResult(String msg) {
-        try {
-            FileWriter fw = new FileWriter("/sdcard/vviewer_test.log");
-            fw.write(msg);
-            fw.close();
-        } catch (Exception ignored) {}
+    public void openSettings() {
+        Intent intent = new Intent(this, SettingsActivity.class);
+        startActivity(intent);
+    }
+
+    public void openTerminal() {
+        Intent intent = new Intent(this, TerminalActivity.class);
+        startActivity(intent);
     }
 }

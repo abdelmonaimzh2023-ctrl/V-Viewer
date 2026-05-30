@@ -7,16 +7,19 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.*;
+import java.util.zip.GZIPInputStream;
 
 public class SettingsActivity extends Activity {
-    private TextView statusText;
-    private Button selectFileBtn, installBtn, deleteBtn;
+    private TextView statusText, progressText;
+    private Button selectFileBtn, installBtn, deleteBtn, cancelBtn;
+    private ProgressBar progressBar;
     private Uri selectedFileUri = null;
+    private boolean isInstalling = false;
+    private Thread installThread = null;
     private static final int PICK_FILE = 1;
     private static final String IMAGE_PATH = Environment.getExternalStorageDirectory() + "/V-Viewer/rootfs.tar.gz";
     private static final String INSTALL_PATH = "/data/data/com.vviewer/files/ubuntu";
@@ -27,9 +30,12 @@ public class SettingsActivity extends Activity {
         setContentView(R.layout.settings);
 
         statusText = findViewById(R.id.statusText);
+        progressText = findViewById(R.id.progressText);
+        progressBar = findViewById(R.id.progressBar);
         selectFileBtn = findViewById(R.id.selectFileBtn);
         installBtn = findViewById(R.id.installBtn);
         deleteBtn = findViewById(R.id.deleteBtn);
+        cancelBtn = findViewById(R.id.cancelBtn);
 
         updateStatus();
 
@@ -41,16 +47,23 @@ public class SettingsActivity extends Activity {
         });
 
         installBtn.setOnClickListener(v -> {
-            if (selectedFileUri != null) {
-                installImage();
-            } else {
+            if (selectedFileUri != null && !isInstalling) {
+                startInstallation();
+            } else if (selectedFileUri == null) {
                 Toast.makeText(this, "Select a file first", Toast.LENGTH_SHORT).show();
             }
         });
 
-        deleteBtn.setOnClickListener(v -> {
-            deleteInstallation();
+        cancelBtn.setOnClickListener(v -> {
+            if (isInstalling && installThread != null) {
+                installThread.interrupt();
+                isInstalling = false;
+                resetUI();
+                Toast.makeText(this, "Installation cancelled", Toast.LENGTH_SHORT).show();
+            }
         });
+
+        deleteBtn.setOnClickListener(v -> deleteInstallation());
     }
 
     @Override
@@ -62,26 +75,84 @@ public class SettingsActivity extends Activity {
         }
     }
 
-    private void installImage() {
-        try {
-            File destDir = new File(Environment.getExternalStorageDirectory(), "V-Viewer");
-            destDir.mkdirs();
-            File destFile = new File(IMAGE_PATH);
-            FileInputStream in = (FileInputStream) getContentResolver().openInputStream(selectedFileUri);
-            FileOutputStream out = new FileOutputStream(destFile);
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = in.read(buffer)) > 0) {
-                out.write(buffer, 0, len);
+    private void startInstallation() {
+        isInstalling = true;
+        installBtn.setEnabled(false);
+        cancelBtn.setVisibility(View.VISIBLE);
+        progressBar.setVisibility(View.VISIBLE);
+        progressBar.setMax(100);
+        progressBar.setProgress(0);
+        progressText.setVisibility(View.VISIBLE);
+        progressText.setText("Preparing...");
+
+        installThread = new Thread(() -> {
+            try {
+                // المرحلة 1: نسخ الملف
+                updateProgress("Copying file...", 0);
+                File destDir = new File(Environment.getExternalStorageDirectory(), "V-Viewer");
+                destDir.mkdirs();
+                File destFile = new File(IMAGE_PATH);
+                InputStream in = getContentResolver().openInputStream(selectedFileUri);
+                long fileSize = in.available(); // قد يكون 0 لبعض الأنواع
+                FileOutputStream out = new FileOutputStream(destFile);
+                byte[] buffer = new byte[65536]; // 64KB buffer for speed
+                int len;
+                long total = 0;
+                while ((len = in.read(buffer)) > 0 && !Thread.currentThread().isInterrupted()) {
+                    out.write(buffer, 0, len);
+                    total += len;
+                    if (fileSize > 0) {
+                        int percent = (int)(total * 50 / fileSize);
+                        updateProgress("Copying... " + (total/1024/1024) + "MB", percent);
+                    }
+                }
+                in.close();
+                out.close();
+
+                if (Thread.currentThread().isInterrupted()) return;
+
+                // المرحلة 2: فك الضغط (محاكاة التقدم)
+                updateProgress("Extracting...", 50);
+                File installDir = new File(INSTALL_PATH);
+                installDir.mkdirs();
+                // TODO: استدعاء proot لفك الضغط الحقيقي
+                // حالياً نحاكي التقدم
+                for (int i = 50; i <= 100; i += 5) {
+                    if (Thread.currentThread().isInterrupted()) return;
+                    Thread.sleep(500);
+                    updateProgress("Extracting... " + (i-50)*2 + "%", i);
+                }
+
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Installation complete!", Toast.LENGTH_SHORT).show();
+                    resetUI();
+                    updateStatus();
+                });
+            } catch (Exception e) {
+                if (!Thread.currentThread().isInterrupted()) {
+                    runOnUiThread(() -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+                resetUI();
             }
-            in.close();
-            out.close();
-            Toast.makeText(this, "Image copied. Extracting...", Toast.LENGTH_SHORT).show();
-            // هنا سيتم استدعاء أمر فك الضغط عبر proot أو كود C++ لاحقاً
-            updateStatus();
-        } catch (Exception e) {
-            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
+        });
+        installThread.start();
+    }
+
+    private void updateProgress(String message, int percent) {
+        runOnUiThread(() -> {
+            progressText.setText(message + " (" + percent + "%)");
+            progressBar.setProgress(percent);
+        });
+    }
+
+    private void resetUI() {
+        runOnUiThread(() -> {
+            isInstalling = false;
+            installBtn.setEnabled(true);
+            cancelBtn.setVisibility(View.GONE);
+            progressBar.setVisibility(View.GONE);
+            progressText.setVisibility(View.GONE);
+        });
     }
 
     private void deleteInstallation() {

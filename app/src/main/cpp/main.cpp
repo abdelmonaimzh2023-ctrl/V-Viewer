@@ -34,7 +34,7 @@ static bool gear_pressed = false;
 static bool connected = false;
 
 static void update_layout() {
-    gear_r = bar_h * 0.4f;
+    gear_r = bar_h * 0.5f;
     gear_cx = 0.95f;
     gear_cy = 1.0f - bar_h / 2.0f;
 }

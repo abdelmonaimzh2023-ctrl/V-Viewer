@@ -22,7 +22,7 @@ static GLuint program = 0;
 static GLint uColorLoc = -1;
 
 static int screen_w = 1920, screen_h = 1080;
-static float time = 0.0f;
+static float anim_time = 0.0f; // تم تغيير الاسم من time إلى anim_time
 
 static float bar_h = 0.07f;
 static float gear_cx, gear_cy, gear_r;
@@ -113,15 +113,12 @@ static void draw_circle(float cx, float cy, float r, float red, float green, flo
 
 static void draw_gear(float cx, float cy, float r, float r_color, float g_color, float b_color) {
     float sq = r * 1.6f;
-    // خلفية زجاجية
     draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.1f, 0.1f, 0.15f, 0.6f);
-    // إطار مضيء
-    float glow = 0.5f + 0.2f * sinf(time * 2.0f);
+    float glow = 0.5f + 0.2f * sinf(anim_time * 2.0f);
     draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.003f, r_color, g_color, b_color, glow);
     draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.003f, r_color, g_color, b_color, glow);
     draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, r_color, g_color, b_color, glow);
     draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.003f, r_color, g_color, b_color, glow);
-    // الترس
     draw_circle(cx, cy, r, r_color, g_color, b_color, 1.0f);
     float t = r*0.25f;
     float len = r*0.6f;
@@ -134,7 +131,7 @@ static void draw_gear(float cx, float cy, float r, float r_color, float g_color,
 static void draw_terminal_icon(float cx, float cy, float r) {
     float sq = r * 1.6f;
     draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.1f, 0.1f, 0.15f, 0.6f);
-    float glow = 0.5f + 0.2f * sinf(time * 2.0f + 1.0f);
+    float glow = 0.5f + 0.2f * sinf(anim_time * 2.0f + 1.0f);
     draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
     draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
     draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
@@ -229,32 +226,26 @@ static void term_egl() {
 }
 
 static void draw_frame() {
-    time += 0.016f; // ~60 FPS
+    anim_time += 0.016f; // ~60 FPS
 
-    // خلفية متحركة (تدرج بطيء)
-    float bg_pulse = 0.5f + 0.5f * sinf(time * 0.3f);
+    float bg_pulse = 0.5f + 0.5f * sinf(anim_time * 0.3f);
     glClearColor(get_bg_r() * (0.8f + bg_pulse * 0.2f),
                  get_bg_g() * (0.8f + bg_pulse * 0.2f),
                  get_bg_b() * (0.8f + bg_pulse * 0.2f), 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // شريط علوي زجاجي
     draw_rect(-1.0f, 1.0f, 2.0f, bar_h, 0.05f, 0.05f, 0.07f, 0.85f);
 
-    // خط سفلي مضيء للشريط
-    float glow = 0.4f + 0.2f * sinf(time * 1.5f);
+    float glow = 0.4f + 0.2f * sinf(anim_time * 1.5f);
     draw_line(-1.0f, 1.0f - bar_h, 1.0f, 1.0f - bar_h, 0.002f,
               get_accent_r(), get_accent_g(), get_accent_b(), glow);
 
-    // أيقونة الطرفية
     draw_terminal_icon(term_cx, term_cy, gear_r);
 
-    // زر الترس
     float gcol_r = get_accent_r(), gcol_g = get_accent_g(), gcol_b = get_accent_b();
     if (gear_pressed) { gcol_r*=0.7f; gcol_g*=0.7f; gcol_b*=0.7f; }
     draw_gear(gear_cx, gear_cy, gear_r, gcol_r, gcol_g, gcol_b);
 
-    // مؤشر حالة Wayland
     float status_x = gear_cx - gear_r*7.0f;
     float status_y = gear_cy;
     float status_r = gear_r*0.4f;
@@ -277,7 +268,6 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 }
 
 void android_main(struct android_app* app) {
-    app_dummy();
     app->onAppCmd = handle_cmd;
     while(1) {
         int ident, events;

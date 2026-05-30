@@ -10,15 +10,6 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
-// مسجل أخطاء إلى ملف على التخزين العام (يحتاج إذن)
-static void log_to_file(const char* msg) {
-    std::ofstream log("/sdcard/vviewer_debug.log", std::ios::app);
-    if (log.is_open()) {
-        log << msg << std::endl;
-        log.close();
-    }
-}
-
 struct Theme;
 
 extern "C" {
@@ -56,7 +47,6 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
             last_frame = std::chrono::high_resolution_clock::now();
             auto_detect_quality();
             LOGI("V-Viewer initialized, quality: %d", get_current_quality());
-            log_to_file("V-Viewer initialized successfully");
             break;
         case APP_CMD_TERM_WINDOW:
             break;
@@ -64,11 +54,11 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 }
 
 extern "C" void android_main(struct android_app* app) {
+    LOGI("android_main started");  // هذا أول سطر يُطبع
     try {
         app->onAppCmd = handle_cmd;
         set_theme(0);
-        LOGI("V-Viewer starting...");
-        log_to_file("V-Viewer main loop started");
+        LOGI("Theme set, entering main loop");
         
         while (true) {
             int ident, events;
@@ -80,9 +70,7 @@ extern "C" void android_main(struct android_app* app) {
         }
     } catch (const std::exception& e) {
         LOGE("FATAL: %s", e.what());
-        log_to_file(("FATAL: " + std::string(e.what())).c_str());
     } catch (...) {
         LOGE("FATAL: unknown exception");
-        log_to_file("FATAL: unknown exception");
     }
 }

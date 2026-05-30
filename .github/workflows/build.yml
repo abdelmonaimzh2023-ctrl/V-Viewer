@@ -28,23 +28,14 @@ jobs:
     - name: Setup NDK
       run: sdkmanager "ndk;26.1.10909125"
     
-    - name: Build Release APK
-      run: gradle assembleRelease
+    - name: Build Debug APK
+      run: gradle assembleDebug
     
-    - name: Sign APK with apksigner (v1+v2+v3)
-      run: |
-        # إنشاء مفتاح
-        keytool -genkey -v -keystore vviewer.keystore -alias vviewer -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=V-Viewer, OU=Dev, O=V-Viewer, L=City, ST=State, C=UN"
-        # zipalign أولاً
-        /usr/local/lib/android/sdk/build-tools/34.0.0/zipalign -v -p 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/aligned.apk
-        # توقيع بـ apksigner مع v1, v2, v3
-        /usr/local/lib/android/sdk/build-tools/34.0.0/apksigner sign --ks vviewer.keystore --ks-pass pass:android --ks-key-alias vviewer --key-pass pass:android --out app/build/outputs/apk/release/V-Viewer-Signed.apk app/build/outputs/apk/release/aligned.apk
-    
-    - name: Upload Signed APK
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: V-Viewer-APK
-        path: app/build/outputs/apk/release/V-Viewer-Signed.apk
+        path: app/build/outputs/apk/debug/*.apk
     
     - name: Upload Build Log
       uses: actions/upload-artifact@v4

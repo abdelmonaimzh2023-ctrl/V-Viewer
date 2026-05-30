@@ -24,19 +24,25 @@ static GLint uColorLoc = -1;
 static int screen_w = 1920, screen_h = 1080;
 
 // شريط علوي
-static float bar_h = 0.06f;
+static float bar_h = 0.07f;
 
 // زر الإعدادات (ترس)
 static float gear_cx, gear_cy, gear_r;
 static bool gear_pressed = false;
 
+// زر الطرفية
+static float term_cx, term_cy;
+
 // حالة الاتصال
 static bool connected = false;
 
 static void update_layout() {
-    gear_r = bar_h * 0.5f;
-    gear_cx = 0.95f;
+    gear_r = bar_h * 0.5f; // ترس أكبر
+    gear_cx = 0.94f;
     gear_cy = 1.0f - bar_h / 2.0f;
+
+    term_cx = gear_cx - gear_r * 3.5f;
+    term_cy = gear_cy;
 }
 
 static float to_ndc_x(float px) { return (px / screen_w) * 2.0f - 1.0f; }
@@ -115,24 +121,55 @@ static void draw_circle(float cx, float cy, float r, float red, float green, flo
     glDisableVertexAttribArray(0);
 }
 
-// أيقونة ترس (دائرة بداخلها خطوط)
+// أيقونة ترس (دائرة بداخلها خطوط) - محسّنة
 static void draw_gear(float cx, float cy, float r, float r_color, float g_color, float b_color) {
-    draw_circle(cx, cy, r, 0.2f, 0.2f, 0.2f, 1.0f);
-    draw_circle(cx, cy, r*0.55f, r_color, g_color, b_color, 1.0f);
-    float t = r*0.2f;
-    float len = r*0.7f;
-    draw_line(cx, cy+len, cx, cy+r, t, r_color, g_color, b_color, 1.0f);
-    draw_line(cx, cy-len, cx, cy-r, t, r_color, g_color, b_color, 1.0f);
-    draw_line(cx+len, cy, cx+r, cy, t, r_color, g_color, b_color, 1.0f);
-    draw_line(cx-len, cy, cx-r, cy, t, r_color, g_color, b_color, 1.0f);
+    // مربع خلفي للترس (خلفية شفافة داكنة)
+    float sq = r * 1.6f;
+    draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.15f, 0.15f, 0.15f, 0.8f);
+    // إطار المربع
+    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.005f, r_color, g_color, b_color, 0.6f);
+    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.005f, r_color, g_color, b_color, 0.6f);
+    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.005f, r_color, g_color, b_color, 0.6f);
+    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.005f, r_color, g_color, b_color, 0.6f);
+    // الترس نفسه
+    draw_circle(cx, cy, r, r_color, g_color, b_color, 1.0f);
+    float t = r*0.25f;
+    float len = r*0.6f;
+    draw_line(cx, cy+len, cx, cy+r*0.9f, t, 0.1f, 0.1f, 0.1f, 1.0f);
+    draw_line(cx, cy-len, cx, cy-r*0.9f, t, 0.1f, 0.1f, 0.1f, 1.0f);
+    draw_line(cx+len, cy, cx+r*0.9f, cy, t, 0.1f, 0.1f, 0.1f, 1.0f);
+    draw_line(cx-len, cy, cx-r*0.9f, cy, t, 0.1f, 0.1f, 0.1f, 1.0f);
 }
 
-// فتح شاشة الإعدادات من Java
+// أيقونة الطرفية (مستطيل مع >_ )
+static void draw_terminal_icon(float cx, float cy, float r) {
+    float sq = r * 1.6f;
+    draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.15f, 0.15f, 0.15f, 0.8f);
+    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.005f, 1.0f, 1.0f, 1.0f, 0.6f);
+    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.005f, 1.0f, 1.0f, 1.0f, 0.6f);
+    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.005f, 1.0f, 1.0f, 1.0f, 0.6f);
+    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.005f, 1.0f, 1.0f, 1.0f, 0.6f);
+    draw_line(cx - r*0.5f, cy + r*0.5f, cx + r*0.7f, cy + r*0.5f, 0.02f, 0.0f, 1.0f, 1.0f, 1.0f);
+    draw_line(cx - r*0.3f, cy, cx + r*0.3f, cy, 0.02f, 1.0f, 1.0f, 1.0f, 1.0f);
+    draw_line(cx, cy - r*0.5f, cx + r*0.7f, cy - r*0.5f, 0.02f, 0.0f, 1.0f, 1.0f, 1.0f);
+}
+
+// فتح شاشة الإعدادات
 static void openSettings(ANativeActivity* activity) {
     JNIEnv* env;
     activity->vm->AttachCurrentThread(&env, NULL);
     jclass clazz = env->GetObjectClass(activity->clazz);
     jmethodID method = env->GetMethodID(clazz, "openSettings", "()V");
+    env->CallVoidMethod(activity->clazz, method);
+    activity->vm->DetachCurrentThread();
+}
+
+// فتح الطرفية
+static void openTerminal(ANativeActivity* activity) {
+    JNIEnv* env;
+    activity->vm->AttachCurrentThread(&env, NULL);
+    jclass clazz = env->GetObjectClass(activity->clazz);
+    jmethodID method = env->GetMethodID(clazz, "openTerminal", "()V");
     env->CallVoidMethod(activity->clazz, method);
     activity->vm->DetachCurrentThread();
 }
@@ -146,9 +183,8 @@ static void try_connect() {
 }
 
 // فحص لمس الزر
-static bool in_circle(float px, float py, float cx, float cy, float r) {
-    float dx=px-cx, dy=py-cy;
-    return (dx*dx+dy*dy) <= r*r;
+static bool in_rect(float px, float py, float cx, float cy, float size) {
+    return (px >= cx - size && px <= cx + size && py >= cy - size && py <= cy + size);
 }
 
 // معالج اللمس
@@ -159,11 +195,17 @@ static int32_t handle_input(struct android_app* app, AInputEvent* event) {
     int action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
 
     if (action == AMOTION_EVENT_ACTION_DOWN) {
-        if (in_circle(px, py, gear_cx, gear_cy, gear_r*1.5f)) {
+        // زر الإعدادات (مربع كامل)
+        float sq = gear_r * 1.6f;
+        if (in_rect(px, py, gear_cx, gear_cy, sq)) {
             gear_pressed = true;
             try_connect();
-            // فتح الإعدادات
             openSettings(app->activity);
+            return 1;
+        }
+        // زر الطرفية
+        if (in_rect(px, py, term_cx, term_cy, sq)) {
+            openTerminal(app->activity);
             return 1;
         }
     }
@@ -211,15 +253,18 @@ static void draw_frame() {
     // شريط علوي
     draw_rect(-1.0f, 1.0f, 2.0f, bar_h, 0.05f, 0.05f, 0.07f, 0.95f);
 
+    // أيقونة الطرفية
+    draw_terminal_icon(term_cx, term_cy, gear_r);
+
     // زر الترس
     float gcol_r = get_accent_r(), gcol_g = get_accent_g(), gcol_b = get_accent_b();
     if (gear_pressed) { gcol_r*=0.7f; gcol_g*=0.7f; gcol_b*=0.7f; }
     draw_gear(gear_cx, gear_cy, gear_r, gcol_r, gcol_g, gcol_b);
 
     // مؤشر حالة الاتصال (دائرة بجوار الترس)
-    float status_x = gear_cx - gear_r*2.5f;
+    float status_x = gear_cx - gear_r*7.0f;
     float status_y = gear_cy;
-    float status_r = gear_r*0.5f;
+    float status_r = gear_r*0.4f;
     if (connected) {
         draw_circle(status_x, status_y, status_r, 0.2f, 0.9f, 0.2f, 1.0f);
     } else {

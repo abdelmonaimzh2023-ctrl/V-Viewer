@@ -149,8 +149,18 @@ extern "C" {
         return current_quality;
     }
 
-    // دوال الألوان المباشرة
+    // دوال الألوان للخلفية
     float get_bg_r() { return active_theme->bg_r; }
     float get_bg_g() { return active_theme->bg_g; }
     float get_bg_b() { return active_theme->bg_b; }
+
+    // دوال ألوان التمييز (للأزرار والأيقونات)
+    float get_accent_r() { return active_theme->accent_r; }
+    float get_accent_g() { return active_theme->accent_g; }
+    float get_accent_b() { return active_theme->accent_b; }
+
+    // دوال ألوان الإطارات
+    float get_border_r() { return active_theme->border_r; }
+    float get_border_g() { return active_theme->border_g; }
+    float get_border_b() { return active_theme->border_b; }
 }

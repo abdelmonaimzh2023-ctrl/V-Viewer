@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#FF1A1A2E">
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:text="Status: Checking..."/>
+
+    <Button
+        android:id="@+id/selectFileBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Select Image File (.tar.gz)"
+        android:layout_marginTop="10dp"/>
+
+    <Button
+        android:id="@+id/installBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Install / Update"
+        android:layout_marginTop="10dp"/>
+
+    <Button
+        android:id="@+id/deleteBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Delete Ubuntu Installation"
+        android:layout_marginTop="10dp"/>
+
+</LinearLayout>

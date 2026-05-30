@@ -4,6 +4,7 @@
 #include <GLES3/gl31.h>
 #include <android/input.h>
 #include <cmath>
+#include <jni.h>
 #include "wayland_client.h"
 
 #define TAG "V-Viewer"
@@ -23,7 +24,7 @@ static GLint uColorLoc = -1;
 static int screen_w = 1920, screen_h = 1080;
 
 // شريط علوي
-static float bar_h = 0.06f; // ارتفاع الشريط (نسبي)
+static float bar_h = 0.06f;
 
 // زر الإعدادات (ترس)
 static float gear_cx, gear_cy, gear_r;
@@ -34,8 +35,8 @@ static bool connected = false;
 
 static void update_layout() {
     gear_r = bar_h * 0.4f;
-    gear_cx = 0.95f; // أقصى اليمين
-    gear_cy = 1.0f - bar_h / 2.0f; // منتصف الشريط
+    gear_cx = 0.95f;
+    gear_cy = 1.0f - bar_h / 2.0f;
 }
 
 static float to_ndc_x(float px) { return (px / screen_w) * 2.0f - 1.0f; }
@@ -114,13 +115,10 @@ static void draw_circle(float cx, float cy, float r, float red, float green, flo
     glDisableVertexAttribArray(0);
 }
 
-// أيقونة ترس (مبسطة: دائرة بداخلها خطوط)
+// أيقونة ترس (دائرة بداخلها خطوط)
 static void draw_gear(float cx, float cy, float r, float r_color, float g_color, float b_color) {
-    // الدائرة الخارجية
     draw_circle(cx, cy, r, 0.2f, 0.2f, 0.2f, 1.0f);
-    // الدائرة الداخلية
     draw_circle(cx, cy, r*0.55f, r_color, g_color, b_color, 1.0f);
-    // أسنان الترس (4 خطوط)
     float t = r*0.2f;
     float len = r*0.7f;
     draw_line(cx, cy+len, cx, cy+r, t, r_color, g_color, b_color, 1.0f);
@@ -129,10 +127,14 @@ static void draw_gear(float cx, float cy, float r, float r_color, float g_color,
     draw_line(cx-len, cy, cx-r, cy, t, r_color, g_color, b_color, 1.0f);
 }
 
-// فحص لمس الزر
-static bool in_circle(float px, float py, float cx, float cy, float r) {
-    float dx=px-cx, dy=py-cy;
-    return (dx*dx+dy*dy) <= r*r;
+// فتح شاشة الإعدادات من Java
+static void openSettings(ANativeActivity* activity) {
+    JNIEnv* env;
+    activity->vm->AttachCurrentThread(&env, NULL);
+    jclass clazz = env->GetObjectClass(activity->clazz);
+    jmethodID method = env->GetMethodID(clazz, "openSettings", "()V");
+    env->CallVoidMethod(activity->clazz, method);
+    activity->vm->DetachCurrentThread();
 }
 
 // محاولة الاتصال بـ Wayland
@@ -143,6 +145,12 @@ static void try_connect() {
     }
 }
 
+// فحص لمس الزر
+static bool in_circle(float px, float py, float cx, float cy, float r) {
+    float dx=px-cx, dy=py-cy;
+    return (dx*dx+dy*dy) <= r*r;
+}
+
 // معالج اللمس
 static int32_t handle_input(struct android_app* app, AInputEvent* event) {
     if (AInputEvent_getType(event) != AINPUT_EVENT_TYPE_MOTION) return 0;
@@ -151,9 +159,11 @@ static int32_t handle_input(struct android_app* app, AInputEvent* event) {
     int action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
 
     if (action == AMOTION_EVENT_ACTION_DOWN) {
-        if (in_circle(px, py, gear_cx, gear_cy, gear_r*1.2f)) {
+        if (in_circle(px, py, gear_cx, gear_cy, gear_r*1.5f)) {
             gear_pressed = true;
             try_connect();
+            // فتح الإعدادات
+            openSettings(app->activity);
             return 1;
         }
     }
@@ -182,7 +192,7 @@ static void init_egl(ANativeWindow* window) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     init_shaders();
     update_layout();
-    try_connect(); // محاولة اتصال أولية
+    try_connect();
 }
 
 static void term_egl() {
@@ -206,17 +216,15 @@ static void draw_frame() {
     if (gear_pressed) { gcol_r*=0.7f; gcol_g*=0.7f; gcol_b*=0.7f; }
     draw_gear(gear_cx, gear_cy, gear_r, gcol_r, gcol_g, gcol_b);
 
-    // مؤشر حالة الاتصال (دائرة صغيرة بجوار الترس)
+    // مؤشر حالة الاتصال (دائرة بجوار الترس)
     float status_x = gear_cx - gear_r*2.5f;
     float status_y = gear_cy;
     float status_r = gear_r*0.5f;
     if (connected) {
-        draw_circle(status_x, status_y, status_r, 0.2f, 0.9f, 0.2f, 1.0f); // أخضر
+        draw_circle(status_x, status_y, status_r, 0.2f, 0.9f, 0.2f, 1.0f);
     } else {
-        draw_circle(status_x, status_y, status_r, 0.9f, 0.2f, 0.2f, 1.0f); // أحمر
+        draw_circle(status_x, status_y, status_r, 0.9f, 0.2f, 0.2f, 1.0f);
     }
-
-    // هنا سيتم رسم محتوى Wayland لاحقًا
 
     eglSwapBuffers(display, surface);
 }

@@ -6,6 +6,19 @@
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
+// تعريف Theme من theme.cpp
+struct Theme {
+    float bg_r, bg_g, bg_b;
+    float accent_r, accent_g, accent_b;
+    float corner_radius;
+    float glow_intensity;
+};
+
+extern "C" {
+    extern Theme* get_current_theme();
+    extern void set_theme(int index);
+}
+
 static EGLDisplay display;
 static EGLSurface surface;
 static EGLContext context;
@@ -39,7 +52,8 @@ static void term_egl() {
 }
 
 static void draw_frame() {
-    glClearColor(0.0f, 1.0f, 0.0f, 1.0f); // أخضر زاهي
+    Theme* theme = get_current_theme();
+    glClearColor(theme->bg_r, theme->bg_g, theme->bg_b, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     eglSwapBuffers(display, surface);
 }
@@ -56,12 +70,11 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 }
 
 void android_main(struct android_app* app) {
-    // ضروري لتهيئة glue
     app_dummy();
-    
     app->onAppCmd = handle_cmd;
-    LOGI("android_main started");
-    
+    set_theme(0); // Classic Black
+    LOGI("android_main started with theme Classic Black");
+
     while (1) {
         int ident, events;
         android_poll_source* source;

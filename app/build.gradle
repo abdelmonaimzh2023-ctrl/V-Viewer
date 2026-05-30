@@ -48,24 +48,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-
-    packaging {
-        resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
-        }
-    }
 }
 
-// إجبار إصدار موحد لمكتبات Kotlin يمنع التكرار ويجنب خطأ التحوير
-configurations.all {
-    resolutionStrategy {
-        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
-    }
-}
-
+// لا تبعيات خارجية، التطبيق NativeActivity خالص
 dependencies {
-    // core فقط لأن NativeActivity لا تحتاج appcompat
-    implementation 'androidx.core:core:1.12.0'
 }

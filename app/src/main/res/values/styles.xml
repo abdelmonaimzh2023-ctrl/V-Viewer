@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- الثيم الرئيسي -->
+    <style name="Theme.VViewer" parent="android:Theme.Material.NoActionBar">
+        <!-- الخلفية: سوداء داكنة بالكامل -->
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorBackground">@android:color/black</item>
+        
+        <!-- ملء الشاشة (بدون شريط عنوان) -->
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        
+        <!-- شريط الحالة: شفاف مع أيقونات فاتحة -->
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        
+        <!-- شريط التنقل: شفاف مع أيقونات فاتحة -->
+        <item name="android:windowTranslucentNavigation">true</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        
+        <!-- أيقونات شريط الحالة والتنقل: فاتحة (بيضاء) -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        
+        <!-- إخفاء تلقائي لأشرطة النظام (Immersive) -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        
+        <!-- حركات انتقالية سلسة عند فتح التطبيق -->
+        <item name="android:windowAnimationStyle">@style/WindowAnimation</item>
+        
+        <!-- منع ظهور خلفية بيضاء أثناء التحميل -->
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
+    <!-- حركات انتقالية مخصصة -->
+    <style name="WindowAnimation" parent="android:Animation">
+        <item name="android:activityOpenEnterAnimation">@android:anim/fade_in</item>
+        <item name="android:activityOpenExitAnimation">@android:anim/fade_out</item>
+        <item name="android:activityCloseEnterAnimation">@android:anim/fade_in</item>
+        <item name="android:activityCloseExitAnimation">@android:anim/fade_out</item>
+    </style>
+</resources>

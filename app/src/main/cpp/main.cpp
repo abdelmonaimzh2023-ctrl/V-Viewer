@@ -5,6 +5,7 @@
 #include <android/input.h>
 #include <cmath>
 #include <jni.h>
+#include <cstdlib>
 #include "wayland_client.h"
 
 #define TAG "V-Viewer"
@@ -18,17 +19,31 @@ extern "C" {
 static EGLDisplay display;
 static EGLSurface surface;
 static EGLContext context;
-static GLuint program = 0;
-static GLint uColorLoc = -1;
+static GLuint program = 0, bloom_program = 0;
+static GLint uColorLoc = -1, uTimeLoc = -1;
 
 static int screen_w = 1920, screen_h = 1080;
-static float anim_time = 0.0f; // تم تغيير الاسم من time إلى anim_time
+static float anim_time = 0.0f;
 
 static float bar_h = 0.07f;
 static float gear_cx, gear_cy, gear_r;
 static bool gear_pressed = false;
 static float term_cx, term_cy;
 static bool connected = false;
+
+// جسيمات الخلفية
+struct Particle { float x, y, speed, size, phase; };
+static Particle particles[50];
+
+static void init_particles() {
+    for (int i = 0; i < 50; i++) {
+        particles[i].x = (rand() % 200 - 100) / 100.0f;
+        particles[i].y = (rand() % 200 - 100) / 100.0f;
+        particles[i].speed = 0.1f + (rand() % 30) / 100.0f;
+        particles[i].size = 0.002f + (rand() % 5) / 1000.0f;
+        particles[i].phase = (rand() % 628) / 100.0f;
+    }
+}
 
 static void update_layout() {
     gear_r = bar_h * 0.5f;
@@ -41,6 +56,7 @@ static void update_layout() {
 static float to_ndc_x(float px) { return (px / screen_w) * 2.0f - 1.0f; }
 static float to_ndc_y(float py) { return 1.0f - (py / screen_h) * 2.0f; }
 
+// Shaders
 const char* vs_src = R"(#version 310 es
 precision highp float;
 layout(location=0) in vec2 pos;
@@ -51,6 +67,34 @@ precision mediump float;
 uniform vec4 uColor;
 out vec4 fragColor;
 void main() { fragColor = uColor; })";
+
+const char* bloom_vs = R"(#version 310 es
+precision highp float;
+layout(location=0) in vec2 pos;
+out vec2 uv;
+void main() {
+    gl_Position = vec4(pos,0,1);
+    uv = pos * 0.5 + 0.5;
+})";
+
+const char* bloom_fs = R"(#version 310 es
+precision mediump float;
+in vec2 uv;
+uniform float uTime;
+out vec4 fragColor;
+
+vec3 neonGlow(float dist, vec3 color) {
+    return color * exp(-dist * 4.0) * (0.8 + 0.4 * sin(uTime * 2.0));
+}
+
+void main() {
+    vec2 p = uv * 2.0 - 1.0;
+    float d = length(p);
+    float brightness = 0.015 / (d + 0.15);
+    vec3 base = vec3(0.4, 0.2, 0.8); // بنفسجي
+    vec3 glow = neonGlow(d, base) * brightness;
+    fragColor = vec4(glow * 0.3, 1.0);
+})";
 
 static GLuint load_shader(GLenum type, const char* src) {
     GLuint s = glCreateShader(type);
@@ -65,8 +109,15 @@ static void init_shaders() {
     program = glCreateProgram();
     glAttachShader(program, vs); glAttachShader(program, fs);
     glLinkProgram(program);
-    glDeleteShader(vs); glDeleteShader(fs);
     uColorLoc = glGetUniformLocation(program, "uColor");
+
+    GLuint bvs = load_shader(GL_VERTEX_SHADER, bloom_vs);
+    GLuint bfs = load_shader(GL_FRAGMENT_SHADER, bloom_fs);
+    bloom_program = glCreateProgram();
+    glAttachShader(bloom_program, bvs); glAttachShader(bloom_program, bfs);
+    glLinkProgram(bloom_program);
+    uTimeLoc = glGetUniformLocation(bloom_program, "uTime");
+    glDeleteShader(vs); glDeleteShader(fs); glDeleteShader(bvs); glDeleteShader(bfs);
 }
 
 static void draw_line(float x1, float y1, float x2, float y2, float t, float r, float g, float b, float a) {
@@ -120,8 +171,7 @@ static void draw_gear(float cx, float cy, float r, float r_color, float g_color,
     draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, r_color, g_color, b_color, glow);
     draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.003f, r_color, g_color, b_color, glow);
     draw_circle(cx, cy, r, r_color, g_color, b_color, 1.0f);
-    float t = r*0.25f;
-    float len = r*0.6f;
+    float t = r*0.25f; float len = r*0.6f;
     draw_line(cx, cy+len, cx, cy+r*0.9f, t, 0.05f, 0.05f, 0.08f, 1.0f);
     draw_line(cx, cy-len, cx, cy-r*0.9f, t, 0.05f, 0.05f, 0.08f, 1.0f);
     draw_line(cx+len, cy, cx+r*0.9f, cy, t, 0.05f, 0.05f, 0.08f, 1.0f);
@@ -142,8 +192,7 @@ static void draw_terminal_icon(float cx, float cy, float r) {
 }
 
 static void openSettings(ANativeActivity* activity) {
-    JNIEnv* env;
-    activity->vm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env; activity->vm->AttachCurrentThread(&env, NULL);
     jclass clazz = env->GetObjectClass(activity->clazz);
     jmethodID method = env->GetMethodID(clazz, "openSettings", "()V");
     env->CallVoidMethod(activity->clazz, method);
@@ -151,118 +200,90 @@ static void openSettings(ANativeActivity* activity) {
 }
 
 static void openTerminal(ANativeActivity* activity) {
-    JNIEnv* env;
-    activity->vm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env; activity->vm->AttachCurrentThread(&env, NULL);
     jclass clazz = env->GetObjectClass(activity->clazz);
     jmethodID method = env->GetMethodID(clazz, "openTerminal", "()V");
     env->CallVoidMethod(activity->clazz, method);
     activity->vm->DetachCurrentThread();
 }
 
-static void try_connect() {
-    if (!connected) {
-        connected = wayland_auto_connect();
-        LOGI("Wayland: %s", connected ? "CONNECTED" : "FAILED");
-    }
-}
+static void try_connect() { if (!connected) connected = wayland_auto_connect(); }
 
-static bool in_rect(float px, float py, float cx, float cy, float size) {
-    return (px >= cx - size && px <= cx + size && py >= cy - size && py <= cy + size);
-}
+static bool in_rect(float px, float py, float cx, float cy, float size) { return (px >= cx - size && px <= cx + size && py >= cy - size && py <= cy + size); }
 
 static int32_t handle_input(struct android_app* app, AInputEvent* event) {
     if (AInputEvent_getType(event) != AINPUT_EVENT_TYPE_MOTION) return 0;
     float px = to_ndc_x(AMotionEvent_getX(event,0));
     float py = to_ndc_y(AMotionEvent_getY(event,0));
     int action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
-
     if (action == AMOTION_EVENT_ACTION_DOWN) {
         float sq = gear_r * 1.6f;
-        if (in_rect(px, py, gear_cx, gear_cy, sq)) {
-            gear_pressed = true;
-            try_connect();
-            openSettings(app->activity);
-            return 1;
-        }
-        if (in_rect(px, py, term_cx, term_cy, sq)) {
-            openTerminal(app->activity);
-            return 1;
-        }
-    }
-    else if (action == AMOTION_EVENT_ACTION_UP || action == AMOTION_EVENT_ACTION_CANCEL) {
-        gear_pressed = false;
-        return 1;
-    }
+        if (in_rect(px, py, gear_cx, gear_cy, sq)) { gear_pressed = true; try_connect(); openSettings(app->activity); return 1; }
+        if (in_rect(px, py, term_cx, term_cy, sq)) { openTerminal(app->activity); return 1; }
+    } else if (action == AMOTION_EVENT_ACTION_UP || action == AMOTION_EVENT_ACTION_CANCEL) { gear_pressed = false; return 1; }
     return 0;
 }
 
 static void init_egl(ANativeWindow* window) {
-    screen_w = ANativeWindow_getWidth(window);
-    screen_h = ANativeWindow_getHeight(window);
-    display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    eglInitialize(display,0,0);
-    const EGLint attribs[]={ EGL_SURFACE_TYPE,EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT,
-                              EGL_BLUE_SIZE,8, EGL_GREEN_SIZE,8, EGL_RED_SIZE,8, EGL_DEPTH_SIZE,16, EGL_NONE };
-    EGLConfig cfg; EGLint n;
-    eglChooseConfig(display,attribs,&cfg,1,&n);
+    screen_w = ANativeWindow_getWidth(window); screen_h = ANativeWindow_getHeight(window);
+    display = eglGetDisplay(EGL_DEFAULT_DISPLAY); eglInitialize(display,0,0);
+    const EGLint attribs[]={ EGL_SURFACE_TYPE,EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT, EGL_BLUE_SIZE,8, EGL_GREEN_SIZE,8, EGL_RED_SIZE,8, EGL_DEPTH_SIZE,16, EGL_NONE };
+    EGLConfig cfg; EGLint n; eglChooseConfig(display,attribs,&cfg,1,&n);
     surface = eglCreateWindowSurface(display,cfg,window,0);
     const EGLint ctxAtt[]={EGL_CONTEXT_CLIENT_VERSION,3,EGL_NONE};
-    context = eglCreateContext(display,cfg,NULL,ctxAtt);
-    eglMakeCurrent(display,surface,surface,context);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    init_shaders();
-    update_layout();
-    try_connect();
+    context = eglCreateContext(display,cfg,NULL,ctxAtt); eglMakeCurrent(display,surface,surface,context);
+    glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    init_shaders(); update_layout(); init_particles(); try_connect();
 }
 
 static void term_egl() {
-    if(program) glDeleteProgram(program);
+    if(program) glDeleteProgram(program); if(bloom_program) glDeleteProgram(bloom_program);
     eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
-    if(surface) eglDestroySurface(display,surface);
-    if(context) eglDestroyContext(display,context);
-    eglTerminate(display);
-    display=EGL_NO_DISPLAY;
+    if(surface) eglDestroySurface(display,surface); if(context) eglDestroyContext(display,context);
+    eglTerminate(display); display=EGL_NO_DISPLAY;
 }
 
 static void draw_frame() {
-    anim_time += 0.016f; // ~60 FPS
+    anim_time += 0.016f;
 
-    float bg_pulse = 0.5f + 0.5f * sinf(anim_time * 0.3f);
-    glClearColor(get_bg_r() * (0.8f + bg_pulse * 0.2f),
-                 get_bg_g() * (0.8f + bg_pulse * 0.2f),
-                 get_bg_b() * (0.8f + bg_pulse * 0.2f), 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    // Bloom background
+    glUseProgram(bloom_program);
+    glUniform1f(uTimeLoc, anim_time);
+    float bv[] = { -1,-1, 1,-1, -1,1, 1,1 };
+    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,bv); glEnableVertexAttribArray(0);
+    glDrawArrays(GL_TRIANGLE_STRIP,0,4); glDisableVertexAttribArray(0);
 
+    // خلفية داكنة
+    glClearColor(get_bg_r(), get_bg_g(), get_bg_b(), 0.9f); glClear(GL_COLOR_BUFFER_BIT);
+
+    // جسيمات
+    for (int i=0; i<50; i++) {
+        particles[i].y += particles[i].speed * 0.005f;
+        if (particles[i].y > 1.2f) { particles[i].y = -1.2f; particles[i].x = (rand()%200-100)/100.0f; }
+        float alpha = 0.15f + 0.1f * sinf(anim_time * 3.0f + particles[i].phase);
+        draw_circle(particles[i].x, particles[i].y, particles[i].size, 0.6f, 0.4f, 1.0f, alpha);
+    }
+
+    // شريط علوي زجاجي
     draw_rect(-1.0f, 1.0f, 2.0f, bar_h, 0.05f, 0.05f, 0.07f, 0.85f);
-
     float glow = 0.4f + 0.2f * sinf(anim_time * 1.5f);
-    draw_line(-1.0f, 1.0f - bar_h, 1.0f, 1.0f - bar_h, 0.002f,
-              get_accent_r(), get_accent_g(), get_accent_b(), glow);
+    draw_line(-1.0f, 1.0f - bar_h, 1.0f, 1.0f - bar_h, 0.002f, get_accent_r(), get_accent_g(), get_accent_b(), glow);
 
     draw_terminal_icon(term_cx, term_cy, gear_r);
-
     float gcol_r = get_accent_r(), gcol_g = get_accent_g(), gcol_b = get_accent_b();
     if (gear_pressed) { gcol_r*=0.7f; gcol_g*=0.7f; gcol_b*=0.7f; }
     draw_gear(gear_cx, gear_cy, gear_r, gcol_r, gcol_g, gcol_b);
 
-    float status_x = gear_cx - gear_r*7.0f;
-    float status_y = gear_cy;
-    float status_r = gear_r*0.4f;
-    if (connected) {
-        draw_circle(status_x, status_y, status_r, 0.2f, 0.9f, 0.2f, 0.9f);
-    } else {
-        draw_circle(status_x, status_y, status_r, 0.9f, 0.2f, 0.2f, 0.9f);
-    }
+    float status_x = gear_cx - gear_r*7.0f, status_y = gear_cy, status_r = gear_r*0.4f;
+    if (connected) draw_circle(status_x, status_y, status_r, 0.2f, 0.9f, 0.2f, 0.9f);
+    else draw_circle(status_x, status_y, status_r, 0.9f, 0.2f, 0.2f, 0.9f);
 
     eglSwapBuffers(display, surface);
 }
 
 static void handle_cmd(struct android_app* app, int32_t cmd) {
     switch(cmd) {
-        case APP_CMD_INIT_WINDOW:
-            if(app->window) { init_egl(app->window); app->onInputEvent = handle_input; }
-            break;
+        case APP_CMD_INIT_WINDOW: if(app->window) { init_egl(app->window); app->onInputEvent = handle_input; } break;
         case APP_CMD_TERM_WINDOW: term_egl(); break;
     }
 }
@@ -270,11 +291,8 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 void android_main(struct android_app* app) {
     app->onAppCmd = handle_cmd;
     while(1) {
-        int ident, events;
-        android_poll_source* src;
-        while((ident=ALooper_pollAll(0,NULL,&events,(void**)&src))>=0) {
-            if(src) src->process(app,src);
-        }
+        int ident, events; android_poll_source* src;
+        while((ident=ALooper_pollAll(0,NULL,&events,(void**)&src))>=0) { if(src) src->process(app,src); }
         if(display && program) draw_frame();
     }
 }

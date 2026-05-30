@@ -5,13 +5,12 @@
 #include <chrono>
 #include <sys/sysinfo.h>
 #include <fstream>
-#include <cstdio>
 
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
 
-// مسجل أخطاء إلى ملف خارجي
+// مسجل أخطاء إلى ملف على التخزين العام (يحتاج إذن)
 static void log_to_file(const char* msg) {
     std::ofstream log("/sdcard/vviewer_debug.log", std::ios::app);
     if (log.is_open()) {
@@ -20,7 +19,6 @@ static void log_to_file(const char* msg) {
     }
 }
 
-// تعريف بسيط للـ Theme (forward declaration) – المحتوى الحقيقي في theme.cpp
 struct Theme;
 
 extern "C" {
@@ -46,10 +44,8 @@ static void render_frame() {
         current_fps = frame_count;
         frame_count = 0;
         fps_timer = 0.0f;
-        // تعديل الجودة تلقائياً حسب FPS – يمكن استدعاء دالة من theme.cpp لاحقاً
     }
     Theme* theme = get_current_theme();
-    // للتبسيط نضع ألوان افتراضية في حال عدم وجود الثيم
     glClearColor(0.05f, 0.0f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
@@ -68,10 +64,9 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 }
 
 extern "C" void android_main(struct android_app* app) {
-    // تسجيل أي خطأ يحدث أثناء البدء
     try {
         app->onAppCmd = handle_cmd;
-        set_theme(0); // Classic Black
+        set_theme(0);
         LOGI("V-Viewer starting...");
         log_to_file("V-Viewer main loop started");
         
@@ -84,10 +79,10 @@ extern "C" void android_main(struct android_app* app) {
             render_frame();
         }
     } catch (const std::exception& e) {
-        LOGE("Exception in main: %s", e.what());
-        log_to_file(std::string("FATAL: ") + e.what());
+        LOGE("FATAL: %s", e.what());
+        log_to_file(("FATAL: " + std::string(e.what())).c_str());
     } catch (...) {
-        LOGE("Unknown exception in main");
+        LOGE("FATAL: unknown exception");
         log_to_file("FATAL: unknown exception");
     }
 }

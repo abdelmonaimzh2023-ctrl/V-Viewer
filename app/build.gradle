@@ -30,7 +30,6 @@ android {
         release {
             minifyEnabled false
             shrinkResources false
-            // لا نوقّع هنا، سنوقّع لاحقًا في Actions
         }
     }
 
@@ -47,5 +46,10 @@ android {
     }
 }
 
+configurations.all {
+    exclude group: 'org.jetbrains.kotlin'
+}
+
 dependencies {
+    implementation 'androidx.core:core:1.12.0'
 }

@@ -22,7 +22,6 @@ static float bar_h = 0.07f;
 static float gear_cx, gear_cy, gear_r;
 static bool gear_pressed = false;
 static float term_cx, term_cy;
-static bool connected = false;
 
 static void update_layout() {
     gear_r = bar_h * 0.5f;

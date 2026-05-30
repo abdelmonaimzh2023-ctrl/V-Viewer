@@ -28,7 +28,7 @@ static int init_display(struct android_app* app) {
     
     const EGLint attribs[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT_KHR,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,  // الصحيح
         EGL_BLUE_SIZE, 8,
         EGL_GREEN_SIZE, 8,
         EGL_RED_SIZE, 8,

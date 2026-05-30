@@ -2,6 +2,7 @@ package com.vviewer;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -29,7 +30,9 @@ public class TerminalActivity extends Activity {
         scrollView = findViewById(R.id.scrollView);
         Button sendBtn = findViewById(R.id.sendBtn);
 
-        // بدء جلسة Ubuntu تلقائياً
+        appendOutput("Initializing...\n");
+        appendOutput("Files dir: " + getFilesDir().getAbsolutePath() + "\n");
+
         startUbuntuSession();
 
         sendBtn.setOnClickListener(v -> {
@@ -40,7 +43,7 @@ public class TerminalActivity extends Activity {
                     processInput.flush();
                     terminalInput.setText("");
                 } catch (Exception e) {
-                    appendOutput("Error: " + e.getMessage());
+                    appendOutput("Error: " + e.getMessage() + "\n");
                 }
             }
         });
@@ -48,16 +51,43 @@ public class TerminalActivity extends Activity {
 
     private void startUbuntuSession() {
         try {
-            String ubuntuPath = "/data/data/com.vviewer/files/ubuntu";
+            String ubuntuPath = getFilesDir() + "/ubuntu";
             String prootPath = getFilesDir() + "/proot";
-            
-            // التأكد من وجود proot
+
+            appendOutput("Looking for proot at: " + prootPath + "\n");
+
             File prootFile = new File(prootPath);
             if (!prootFile.exists()) {
-                appendOutput("Error: proot binary not found. Please install first.");
+                appendOutput("proot not found, copying from assets...\n");
+                // نسخ من assets
+                InputStream in = getAssets().open("proot");
+                FileOutputStream out = new FileOutputStream(prootFile);
+                byte[] buf = new byte[8192];
+                int len;
+                while ((len = in.read(buf)) > 0) {
+                    out.write(buf, 0, len);
+                }
+                in.close();
+                out.close();
+                prootFile.setExecutable(true);
+                appendOutput("proot copied (" + prootFile.length() + " bytes)\n");
+            }
+
+            if (!prootFile.exists() || prootFile.length() == 0) {
+                appendOutput("Error: proot binary is missing or empty.\n");
                 return;
             }
-            prootFile.setExecutable(true);
+
+            // التحقق من وجود Ubuntu
+            File ubuntuDir = new File(ubuntuPath);
+            if (!ubuntuDir.exists() || !new File(ubuntuPath + "/bin/bash").exists()) {
+                appendOutput("Error: Ubuntu not installed. Please install the image first.\n");
+                appendOutput("Looked in: " + ubuntuPath + "\n");
+                appendOutput("bin/bash exists: " + new File(ubuntuPath + "/bin/bash").exists() + "\n");
+                return;
+            }
+
+            appendOutput("Starting Ubuntu session...\n");
 
             ProcessBuilder pb = new ProcessBuilder(
                 prootPath,
@@ -81,14 +111,14 @@ public class TerminalActivity extends Activity {
                         appendOutput(text);
                     }
                 } catch (IOException e) {
-                    appendOutput("Session ended.");
+                    appendOutput("Session ended.\n");
                 }
             });
             outputThread.start();
 
             appendOutput("Ubuntu session started.\n");
         } catch (Exception e) {
-            appendOutput("Failed to start Ubuntu: " + e.getMessage());
+            appendOutput("Failed to start Ubuntu: " + e.getMessage() + "\n");
         }
     }
 

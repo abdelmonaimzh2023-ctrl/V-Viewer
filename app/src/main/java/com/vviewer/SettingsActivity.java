@@ -11,7 +11,6 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.*;
-import java.util.zip.GZIPInputStream;
 
 public class SettingsActivity extends Activity {
     private TextView statusText, progressText;
@@ -23,6 +22,7 @@ public class SettingsActivity extends Activity {
     private static final int PICK_FILE = 1;
     private static final String IMAGE_PATH = Environment.getExternalStorageDirectory() + "/V-Viewer/rootfs.tar.gz";
     private static final String INSTALL_PATH = "/data/data/com.vviewer/files/ubuntu";
+    private static final String PROOT_PATH = "/data/data/com.vviewer/files/proot";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,6 +37,7 @@ public class SettingsActivity extends Activity {
         deleteBtn = findViewById(R.id.deleteBtn);
         cancelBtn = findViewById(R.id.cancelBtn);
 
+        copyProotFromAssets();
         updateStatus();
 
         selectFileBtn.setOnClickListener(v -> {
@@ -66,6 +67,27 @@ public class SettingsActivity extends Activity {
         deleteBtn.setOnClickListener(v -> deleteInstallation());
     }
 
+    private void copyProotFromAssets() {
+        File prootFile = new File(PROOT_PATH);
+        if (!prootFile.exists()) {
+            try {
+                InputStream in = getAssets().open("proot");
+                FileOutputStream out = new FileOutputStream(prootFile);
+                byte[] buf = new byte[8192];
+                int len;
+                while ((len = in.read(buf)) > 0) {
+                    out.write(buf, 0, len);
+                }
+                in.close();
+                out.close();
+                prootFile.setExecutable(true);
+                Toast.makeText(this, "proot copied to " + PROOT_PATH, Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "Failed to copy proot: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -87,41 +109,41 @@ public class SettingsActivity extends Activity {
 
         installThread = new Thread(() -> {
             try {
-                // المرحلة 1: نسخ الملف
-                updateProgress("Copying file...", 0);
+                updateProgress("Copying image...", 0);
                 File destDir = new File(Environment.getExternalStorageDirectory(), "V-Viewer");
                 destDir.mkdirs();
                 File destFile = new File(IMAGE_PATH);
                 InputStream in = getContentResolver().openInputStream(selectedFileUri);
-                long fileSize = in.available(); // قد يكون 0 لبعض الأنواع
                 FileOutputStream out = new FileOutputStream(destFile);
-                byte[] buffer = new byte[65536]; // 64KB buffer for speed
+                byte[] buffer = new byte[65536];
                 int len;
                 long total = 0;
                 while ((len = in.read(buffer)) > 0 && !Thread.currentThread().isInterrupted()) {
                     out.write(buffer, 0, len);
                     total += len;
-                    if (fileSize > 0) {
-                        int percent = (int)(total * 50 / fileSize);
-                        updateProgress("Copying... " + (total/1024/1024) + "MB", percent);
-                    }
+                    int percent = (int)(total * 80 / (1024L*1024*1024*2)); // تقدير 2GB
+                    updateProgress("Copying... " + (total/1024/1024) + "MB", Math.min(percent, 80));
                 }
                 in.close();
                 out.close();
-
                 if (Thread.currentThread().isInterrupted()) return;
 
-                // المرحلة 2: فك الضغط (محاكاة التقدم)
-                updateProgress("Extracting...", 50);
+                updateProgress("Extracting...", 80);
                 File installDir = new File(INSTALL_PATH);
                 installDir.mkdirs();
-                // TODO: استدعاء proot لفك الضغط الحقيقي
-                // حالياً نحاكي التقدم
-                for (int i = 50; i <= 100; i += 5) {
-                    if (Thread.currentThread().isInterrupted()) return;
-                    Thread.sleep(500);
-                    updateProgress("Extracting... " + (i-50)*2 + "%", i);
-                }
+
+                // استخدام tar لفك الضغط
+                ProcessBuilder pb = new ProcessBuilder(
+                    PROOT_PATH,
+                    "-r", installDir.getAbsolutePath(),
+                    "/bin/tar", "-xzf", IMAGE_PATH,
+                    "-C", "/"
+                );
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+                process.waitFor();
+
+                updateProgress("Finalizing...", 95);
 
                 runOnUiThread(() -> {
                     Toast.makeText(this, "Installation complete!", Toast.LENGTH_SHORT).show();

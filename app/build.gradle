@@ -56,11 +56,16 @@ android {
     }
 }
 
+// إجبار إصدار موحد لمكتبات Kotlin يمنع التكرار ويجنب خطأ التحوير
+configurations.all {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+    }
+}
+
 dependencies {
-    implementation('androidx.core:core:1.12.0') {
-        exclude group: 'org.jetbrains.kotlin'
-    }
-    implementation('androidx.appcompat:appcompat:1.6.1') {
-        exclude group: 'org.jetbrains.kotlin'
-    }
+    // core فقط لأن NativeActivity لا تحتاج appcompat
+    implementation 'androidx.core:core:1.12.0'
 }

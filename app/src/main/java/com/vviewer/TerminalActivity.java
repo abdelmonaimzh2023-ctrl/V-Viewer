@@ -51,7 +51,7 @@ public class TerminalActivity extends Activity {
             String ubuntuPath = getFilesDir() + "/ubuntu";
             String prootPath = getFilesDir() + "/proot";
 
-            // نسخ proot إذا لم يكن موجوداً
+            // نسخ proot من assets إذا لزم
             File prootFile = new File(prootPath);
             if (!prootFile.exists() || prootFile.length() == 0) {
                 appendOutput("Copying proot...\n");
@@ -63,20 +63,24 @@ public class TerminalActivity extends Activity {
                 in.close(); out.close();
             }
 
-            // تصحيح الصلاحيات (تنفيذ + قراءة + كتابة)
-            prootFile.setExecutable(true, false);
+            // تصحيح الصلاحيات (قراءة، كتابة، تنفيذ) للمالك فقط
             prootFile.setReadable(true, false);
             prootFile.setWritable(true, false);
+            prootFile.setExecutable(true, false);
 
             if (!prootFile.canExecute()) {
-                appendOutput("Error: Cannot execute proot\n");
-                return;
+                appendOutput("Error: Cannot execute proot. Trying fallback...\n");
+                // محاولة عبر Runtime
+                Runtime.getRuntime().exec("chmod 700 " + prootPath).waitFor();
+                if (!prootFile.canExecute()) {
+                    appendOutput("Failed to set execute permission.\n");
+                    return;
+                }
             }
 
-            // التأكد من وجود Ubuntu
             File ubuntuDir = new File(ubuntuPath);
             if (!ubuntuDir.exists() || !new File(ubuntuPath + "/bin").exists()) {
-                appendOutput("Ubuntu not installed. Please use Settings first.\n");
+                appendOutput("Ubuntu not installed. Please use Settings.\n");
                 return;
             }
 

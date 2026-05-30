@@ -4,17 +4,22 @@ import android.Manifest;
 import android.app.NativeActivity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.widget.Toast;
 
 public class MainActivity extends NativeActivity {
     private static final int PERMISSION_REQUEST_CODE = 100;
+    private static final int MANAGE_STORAGE_REQUEST_CODE = 101;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // طلب صلاحية التخزين إذا لم تُمنح
+        // طلب الصلاحيات الأساسية
         if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(
@@ -25,6 +30,29 @@ public class MainActivity extends NativeActivity {
                 PERMISSION_REQUEST_CODE
             );
         }
+
+        // طلب صلاحية إدارة جميع الملفات (Android 11+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, MANAGE_STORAGE_REQUEST_CODE);
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == MANAGE_STORAGE_REQUEST_CODE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (Environment.isExternalStorageManager()) {
+                    Toast.makeText(this, "Full file access granted", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Full file access denied. Terminal may not work.", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
     }
 
     @Override
@@ -32,9 +60,7 @@ public class MainActivity extends NativeActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Permissions granted. You can now install Ubuntu.", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Permissions denied. App may not work correctly.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Storage permissions granted", Toast.LENGTH_SHORT).show();
             }
         }
     }

@@ -19,6 +19,8 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:screenOrientation="landscape">
+            <!-- هذا السطر يحمّل المكتبة الأصلية -->
+            <meta-data android:name="android.app.lib_name" android:value="vviewer" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

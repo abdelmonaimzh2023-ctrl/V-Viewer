@@ -30,10 +30,7 @@ android {
         release {
             minifyEnabled false
             shrinkResources false
-        }
-        debug {
-            debuggable true
-            jniDebuggable false
+            // لا نوقّع هنا، سنوقّع لاحقًا في Actions
         }
     }
 
@@ -50,6 +47,5 @@ android {
     }
 }
 
-// لا تبعيات خارجية، التطبيق NativeActivity خالص
 dependencies {
 }

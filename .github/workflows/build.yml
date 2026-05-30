@@ -28,14 +28,20 @@ jobs:
     - name: Setup NDK
       run: sdkmanager "ndk;26.1.10909125"
     
-    - name: Build APK
-      run: gradle assembleRelease 2>&1 | tee build-log.txt
+    - name: Build Release APK
+      run: gradle assembleRelease
     
-    - name: Upload APK
+    - name: Generate Keystore and Sign APK
+      run: |
+        keytool -genkey -v -keystore vviewer.keystore -alias vviewer -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Unknown, OU=Unknown, O=Unknown, L=Unknown, ST=Unknown, C=Unknown"
+        jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore vviewer.keystore -storepass android -keypass android app/build/outputs/apk/release/app-release-unsigned.apk vviewer
+        /usr/local/lib/android/sdk/build-tools/34.0.0/zipalign -v 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/V-Viewer-Signed.apk
+    
+    - name: Upload Signed APK
       uses: actions/upload-artifact@v4
       with:
         name: V-Viewer-APK
-        path: app/build/outputs/apk/release/*.apk
+        path: app/build/outputs/apk/release/V-Viewer-Signed.apk
     
     - name: Upload Build Log
       uses: actions/upload-artifact@v4

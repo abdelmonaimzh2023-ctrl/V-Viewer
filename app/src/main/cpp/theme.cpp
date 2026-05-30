@@ -101,7 +101,7 @@ static int current_theme = 0;
 static Theme* active_theme = &themes[0];
 
 // ========== تغيير الثيم ==========
-bool set_theme(int index) {
+extern "C" bool set_theme(int index) {
     int count = sizeof(themes) / sizeof(themes[0]);
     if (index >= 0 && index < count) {
         current_theme = index;
@@ -124,7 +124,7 @@ bool set_theme_by_name(const char* name) {
 }
 
 // ========== الحصول على الثيم الحالي ==========
-Theme* get_current_theme() {
+extern "C" Theme* get_current_theme() {
     return active_theme;
 }
 

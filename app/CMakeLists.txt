@@ -37,6 +37,8 @@ target_link_libraries(vviewer
 )
 
 target_include_directories(vviewer PRIVATE
+    ${ANDROID_NDK}/sources/android/native_app_glue
+    ${ANDROID_NDK}/sources/android/native_app_glue
     src/main/cpp
     src/main/cpp/shaders
 )

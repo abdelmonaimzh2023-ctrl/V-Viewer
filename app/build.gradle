@@ -5,6 +5,7 @@ plugins {
 android {
     namespace 'com.vviewer'
     compileSdk 34
+
     defaultConfig {
         applicationId "com.vviewer"
         minSdk 28
@@ -12,7 +13,11 @@ android {
         versionCode 1
         versionName "1.0.0"
         ndkVersion "26.1.10909125"
-        ndk { abiFilters 'arm64-v8a' }
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17"
@@ -20,16 +25,24 @@ android {
             }
         }
     }
+
     buildTypes {
-        debug { debuggable true }
+        debug {
+            debuggable true
+        }
     }
+
     externalNativeBuild {
-        cmake { path "CMakeLists.txt" version "3.22.1" }
+        cmake {
+            path "CMakeLists.txt"
+        }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
 dependencies {
 }

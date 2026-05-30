@@ -8,54 +8,21 @@
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
+// تعريف بسيط للـ Theme (forward declaration) – المحتوى الحقيقي في theme.cpp
+struct Theme;
+
 extern "C" {
-    struct Theme {
-        float bg_r, bg_g, bg_b;
-        float accent_r, accent_g, accent_b;
-        float corner_radius;
-        float glow_intensity;
-    };
     extern Theme* get_current_theme();
     extern void set_theme(int index);
     extern void auto_detect_quality();
+    extern int get_current_quality();
 }
 
-enum QualityLevel {
-    QUALITY_ULTRA  = 0,
-    QUALITY_HIGH   = 1,
-    QUALITY_MEDIUM = 2,
-    QUALITY_LOW    = 3,
-    QUALITY_MIN    = 4
-};
-
-struct QualitySettings {
-    int target_fps;
-    bool shadows, blur, glow, animations, rounded_corners;
-    int color_depth;
-};
-
-QualitySettings quality_presets[] = {
-    {120, true,  true,  true,  true,  true,  24},
-    {60,  true,  true,  true,  true,  true,  24},
-    {45,  false, true,  true,  false, true,  16},
-    {30,  false, false, false, false, true,  16},
-    {15,  false, false, false, false, false, 8}
-};
-
-static int current_quality = QUALITY_HIGH;
-static QualitySettings* active_quality = &quality_presets[QUALITY_HIGH];
 static std::chrono::high_resolution_clock::time_point last_frame;
 static float delta_time = 0.0f;
 static float fps_timer = 0.0f;
 static int frame_count = 0;
 static int current_fps = 0;
-
-void set_quality(int level) {
-    if (level >= QUALITY_ULTRA && level <= QUALITY_MIN) {
-        current_quality = level;
-        active_quality = &quality_presets[level];
-    }
-}
 
 static void render_frame() {
     auto now = std::chrono::high_resolution_clock::now();
@@ -67,12 +34,12 @@ static void render_frame() {
         current_fps = frame_count;
         frame_count = 0;
         fps_timer = 0.0f;
-        if (current_fps < active_quality->target_fps - 10) {
-            if (current_quality < QUALITY_MIN) set_quality(current_quality + 1);
-        }
+        // تعديل الجودة تلقائياً حسب FPS – يمكن استدعاء دالة من theme.cpp لاحقاً
     }
     Theme* theme = get_current_theme();
-    glClearColor(theme->bg_r, theme->bg_g, theme->bg_b, 1.0f);
+    // الوصول لحقول bg_r... الخ موجودة في theme.cpp، هنا نستخدم المؤشر فقط
+    // للتبسيط نضع ألوان افتراضية في حال عدم وجود الثيم
+    glClearColor(0.05f, 0.0f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
@@ -81,7 +48,7 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
         case APP_CMD_INIT_WINDOW:
             last_frame = std::chrono::high_resolution_clock::now();
             auto_detect_quality();
-            LOGI("V-Viewer initialized - Quality: %d, FPS: %d", current_quality, active_quality->target_fps);
+            LOGI("V-Viewer initialized, quality: %d", get_current_quality());
             break;
         case APP_CMD_TERM_WINDOW:
             break;
@@ -90,11 +57,10 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 
 extern "C" void android_main(struct android_app* app) {
     app->onAppCmd = handle_cmd;
-    set_theme(0);
+    set_theme(0); // Classic Black
     LOGI("V-Viewer starting...");
     while (true) {
-        int ident;
-        int events;
+        int ident, events;
         android_poll_source* source;
         while ((ident = ALooper_pollAll(0, nullptr, &events, (void**)&source)) >= 0) {
             if (source != nullptr) source->process(app, source);

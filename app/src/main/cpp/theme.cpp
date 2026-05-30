@@ -151,4 +151,7 @@ extern "C" int get_theme_count() {
 
 extern "C" int get_current_quality() {
     return current_quality;
+extern "C" float get_bg_r() { return active_theme->bg_r; }
+extern "C" float get_bg_g() { return active_theme->bg_g; }
+extern "C" float get_bg_b() { return active_theme->bg_b; }
 }

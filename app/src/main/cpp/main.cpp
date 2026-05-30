@@ -6,17 +6,12 @@
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
-// تعريف Theme من theme.cpp
-struct Theme {
-    float bg_r, bg_g, bg_b;
-    float accent_r, accent_g, accent_b;
-    float corner_radius;
-    float glow_intensity;
-};
-
+// دوال من theme.cpp (لا نعرّف struct Theme هنا)
 extern "C" {
-    extern Theme* get_current_theme();
     extern void set_theme(int index);
+    extern float get_bg_r();
+    extern float get_bg_g();
+    extern float get_bg_b();
 }
 
 static EGLDisplay display;
@@ -52,8 +47,8 @@ static void term_egl() {
 }
 
 static void draw_frame() {
-    Theme* theme = get_current_theme();
-    glClearColor(theme->bg_r, theme->bg_g, theme->bg_b, 1.0f);
+    // استخدام الدوال للحصول على لون الخلفية
+    glClearColor(get_bg_r(), get_bg_g(), get_bg_b(), 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     eglSwapBuffers(display, surface);
 }

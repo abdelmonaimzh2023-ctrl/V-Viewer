@@ -2,21 +2,37 @@
 #include <android/log.h>
 #include <EGL/egl.h>
 #include <GLES3/gl31.h>
+#include <android/input.h>
 
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
-// دوال من theme.cpp (لا نعرّف struct Theme هنا)
 extern "C" {
     extern void set_theme(int index);
     extern float get_bg_r();
     extern float get_bg_g();
     extern float get_bg_b();
+    extern int get_theme_count();
 }
 
 static EGLDisplay display;
 static EGLSurface surface;
 static EGLContext context;
+static int current_theme_index = 0;
+
+// معالج اللمس – نقرة واحدة = تبديل الثيم
+static int32_t handle_input(struct android_app* app, AInputEvent* event) {
+    if (AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
+        int action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
+        if (action == AMOTION_EVENT_ACTION_DOWN) {
+            current_theme_index = (current_theme_index + 1) % get_theme_count();
+            set_theme(current_theme_index);
+            LOGI("Theme switched to %d", current_theme_index);
+            return 1; // تم استهلاك الحدث
+        }
+    }
+    return 0;
+}
 
 static void init_egl(ANativeWindow* window) {
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -47,7 +63,6 @@ static void term_egl() {
 }
 
 static void draw_frame() {
-    // استخدام الدوال للحصول على لون الخلفية
     glClearColor(get_bg_r(), get_bg_g(), get_bg_b(), 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     eglSwapBuffers(display, surface);
@@ -56,7 +71,10 @@ static void draw_frame() {
 static void handle_cmd(struct android_app* app, int32_t cmd) {
     switch (cmd) {
         case APP_CMD_INIT_WINDOW:
-            if (app->window) init_egl(app->window);
+            if (app->window) {
+                init_egl(app->window);
+                app->onInputEvent = handle_input; // تفعيل اللمس
+            }
             break;
         case APP_CMD_TERM_WINDOW:
             term_egl();
@@ -67,8 +85,8 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 void android_main(struct android_app* app) {
     app_dummy();
     app->onAppCmd = handle_cmd;
-    set_theme(0); // Classic Black
-    LOGI("android_main started with theme Classic Black");
+    set_theme(current_theme_index); // Classic Black أولاً
+    LOGI("Tap screen to change theme");
 
     while (1) {
         int ident, events;

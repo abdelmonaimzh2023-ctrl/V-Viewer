@@ -5,34 +5,28 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -funroll-loops -fomit-frame-pointer -march=armv8-a")
 
-# المكتبات المدمجة (Wayland, EGL, إلخ)
-add_library(wayland-client SHARED IMPORTED)
-set_target_properties(wayland-client PROPERTIES IMPORTED_LOCATION
-    ${CMAKE_SOURCE_DIR}/src/main/jniLibs/arm64-v8a/libwayland-client.so.0)
-
-add_library(wayland-egl SHARED IMPORTED)
-set_target_properties(wayland-egl PROPERTIES IMPORTED_LOCATION
-    ${CMAKE_SOURCE_DIR}/src/main/jniLibs/arm64-v8a/libwayland-egl.so.1)
-
 find_library(log-lib log)
 find_library(android-lib android)
 find_library(EGL-lib EGL)
 find_library(GLESv3-lib GLESv3)
 
-# ملفات المصدر
+# مكتبة native_app_glue من NDK
+add_library(native_app_glue STATIC
+    ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c)
+target_include_directories(native_app_glue PRIVATE
+    ${ANDROID_NDK}/sources/android/native_app_glue)
+
+# ملفات المصدر الأساسية فقط (بدون wayland_client لتجنب أخطاء الروابط الآن)
 add_library(vviewer SHARED
     src/main/cpp/main.cpp
-    src/main/cpp/wayland_client.cpp
     src/main/cpp/renderer.cpp
     src/main/cpp/theme.cpp
     src/main/cpp/animations.cpp
     src/main/cpp/window_manager.cpp
 )
 
-# ربط المكتبات
 target_link_libraries(vviewer
-    wayland-client
-    wayland-egl
+    native_app_glue
     ${log-lib}
     ${android-lib}
     ${EGL-lib}

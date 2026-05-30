@@ -5,14 +5,21 @@
 #include <android/input.h>
 #include <cmath>
 #include <jni.h>
+#include <fstream>
 #include "wayland_client.h"
 
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
+// دوال الألوان من theme.cpp (extern "C" ولا نلمس struct Theme)
 extern "C" {
     extern float get_bg_r(), get_bg_g(), get_bg_b();
     extern float get_accent_r(), get_accent_g(), get_accent_b();
+}
+
+static void log_to_file(const char* msg) {
+    std::ofstream log("/sdcard/vviewer_debug.log", std::ios::app);
+    if (log.is_open()) { log << msg << std::endl; log.close(); }
 }
 
 static EGLDisplay display;
@@ -53,13 +60,11 @@ out vec4 fragColor;
 void main() { fragColor = uColor; })";
 
 static GLuint load_shader(GLenum type, const char* src) {
-    GLuint s = glCreateShader(type);
-    glShaderSource(s, 1, &src, NULL);
-    glCompileShader(s);
-    return s;
+    GLuint s = glCreateShader(type); glShaderSource(s, 1, &src, NULL); glCompileShader(s); return s;
 }
 
 static void init_shaders() {
+    log_to_file("init_shaders");
     GLuint vs = load_shader(GL_VERTEX_SHADER, vs_src);
     GLuint fs = load_shader(GL_FRAGMENT_SHADER, fs_src);
     program = glCreateProgram();
@@ -67,48 +72,31 @@ static void init_shaders() {
     glLinkProgram(program);
     glDeleteShader(vs); glDeleteShader(fs);
     uColorLoc = glGetUniformLocation(program, "uColor");
+    log_to_file("shaders done");
 }
 
 static void draw_line(float x1, float y1, float x2, float y2, float t, float r, float g, float b, float a) {
-    float dx = x2 - x1, dy = y2 - y1;
-    float len = sqrtf(dx*dx + dy*dy);
-    if (len < 0.0001f) return;
-    float nx = -dy / len * t * 0.5f;
-    float ny =  dx / len * t * 0.5f;
+    float dx = x2 - x1, dy = y2 - y1; float len = sqrtf(dx*dx + dy*dy); if (len < 0.0001f) return;
+    float nx = -dy / len * t * 0.5f; float ny = dx / len * t * 0.5f;
     float verts[] = { x1-nx, y1-ny, x2-nx, y2-ny, x1+nx, y1+ny, x2-nx, y2-ny, x2+nx, y2+ny, x1+nx, y1+ny };
-    glUseProgram(program);
-    glUniform4f(uColorLoc, r,g,b,a);
-    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,verts);
-    glEnableVertexAttribArray(0);
-    glDrawArrays(GL_TRIANGLES,0,6);
-    glDisableVertexAttribArray(0);
+    glUseProgram(program); glUniform4f(uColorLoc, r,g,b,a);
+    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,verts); glEnableVertexAttribArray(0);
+    glDrawArrays(GL_TRIANGLES,0,6); glDisableVertexAttribArray(0);
 }
 
 static void draw_rect(float x, float y, float w, float h, float r, float g, float b, float a) {
     float verts[] = { x,y, x+w,y, x,y-h, x+w,y-h };
-    glUseProgram(program);
-    glUniform4f(uColorLoc, r,g,b,a);
-    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,verts);
-    glEnableVertexAttribArray(0);
-    glDrawArrays(GL_TRIANGLE_STRIP,0,4);
-    glDisableVertexAttribArray(0);
+    glUseProgram(program); glUniform4f(uColorLoc, r,g,b,a);
+    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,verts); glEnableVertexAttribArray(0);
+    glDrawArrays(GL_TRIANGLE_STRIP,0,4); glDisableVertexAttribArray(0);
 }
 
 static void draw_circle(float cx, float cy, float r, float red, float green, float blue, float a) {
-    const int seg=32;
-    float verts[(seg+2)*2];
-    verts[0]=cx; verts[1]=cy;
-    for(int i=0;i<=seg;i++) {
-        float ang = 2*M_PI*i/seg;
-        verts[2+i*2]=cx+cosf(ang)*r;
-        verts[2+i*2+1]=cy+sinf(ang)*r;
-    }
-    glUseProgram(program);
-    glUniform4f(uColorLoc, red,green,blue,a);
-    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,verts);
-    glEnableVertexAttribArray(0);
-    glDrawArrays(GL_TRIANGLE_FAN,0,seg+2);
-    glDisableVertexAttribArray(0);
+    const int seg=32; float verts[(seg+2)*2]; verts[0]=cx; verts[1]=cy;
+    for(int i=0;i<=seg;i++) { float ang = 2*M_PI*i/seg; verts[2+i*2]=cx+cosf(ang)*r; verts[2+i*2+1]=cy+sinf(ang)*r; }
+    glUseProgram(program); glUniform4f(uColorLoc, red,green,blue,a);
+    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,verts); glEnableVertexAttribArray(0);
+    glDrawArrays(GL_TRIANGLE_FAN,0,seg+2); glDisableVertexAttribArray(0);
 }
 
 static void draw_gear(float cx, float cy, float r, float r_color, float g_color, float b_color) {
@@ -160,8 +148,7 @@ static bool in_rect(float px, float py, float cx, float cy, float size) { return
 
 static int32_t handle_input(struct android_app* app, AInputEvent* event) {
     if (AInputEvent_getType(event) != AINPUT_EVENT_TYPE_MOTION) return 0;
-    float px = to_ndc_x(AMotionEvent_getX(event,0));
-    float py = to_ndc_y(AMotionEvent_getY(event,0));
+    float px = to_ndc_x(AMotionEvent_getX(event,0)), py = to_ndc_y(AMotionEvent_getY(event,0));
     int action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
     if (action == AMOTION_EVENT_ACTION_DOWN) {
         float sq = gear_r * 1.6f;
@@ -172,6 +159,7 @@ static int32_t handle_input(struct android_app* app, AInputEvent* event) {
 }
 
 static void init_egl(ANativeWindow* window) {
+    log_to_file("init_egl");
     screen_w = ANativeWindow_getWidth(window); screen_h = ANativeWindow_getHeight(window);
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY); eglInitialize(display,0,0);
     const EGLint attribs[]={ EGL_SURFACE_TYPE,EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT, EGL_BLUE_SIZE,8, EGL_GREEN_SIZE,8, EGL_RED_SIZE,8, EGL_DEPTH_SIZE,16, EGL_NONE };
@@ -181,6 +169,7 @@ static void init_egl(ANativeWindow* window) {
     context = eglCreateContext(display,cfg,NULL,ctxAtt); eglMakeCurrent(display,surface,surface,context);
     glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     init_shaders(); update_layout(); try_connect();
+    log_to_file("init_egl done");
 }
 
 static void term_egl() {
@@ -193,20 +182,16 @@ static void term_egl() {
 static void draw_frame() {
     anim_time += 0.016f;
     glClearColor(get_bg_r(), get_bg_g(), get_bg_b(), 1.0f); glClear(GL_COLOR_BUFFER_BIT);
-
     draw_rect(-1.0f, 1.0f, 2.0f, bar_h, 0.05f, 0.05f, 0.07f, 0.85f);
     float glow = 0.4f + 0.2f * sinf(anim_time * 1.5f);
     draw_line(-1.0f, 1.0f - bar_h, 1.0f, 1.0f - bar_h, 0.002f, get_accent_r(), get_accent_g(), get_accent_b(), glow);
-
     draw_terminal_icon(term_cx, term_cy, gear_r);
     float gcol_r = get_accent_r(), gcol_g = get_accent_g(), gcol_b = get_accent_b();
     if (gear_pressed) { gcol_r*=0.7f; gcol_g*=0.7f; gcol_b*=0.7f; }
     draw_gear(gear_cx, gear_cy, gear_r, gcol_r, gcol_g, gcol_b);
-
     float status_x = gear_cx - gear_r*7.0f, status_y = gear_cy, status_r = gear_r*0.4f;
     if (connected) draw_circle(status_x, status_y, status_r, 0.2f, 0.9f, 0.2f, 0.9f);
     else draw_circle(status_x, status_y, status_r, 0.9f, 0.2f, 0.2f, 0.9f);
-
     eglSwapBuffers(display, surface);
 }
 
@@ -218,6 +203,7 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 }
 
 void android_main(struct android_app* app) {
+    log_to_file("android_main start");
     app->onAppCmd = handle_cmd;
     while(1) {
         int ident, events; android_poll_source* src;

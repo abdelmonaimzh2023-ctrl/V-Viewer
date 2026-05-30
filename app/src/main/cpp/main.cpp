@@ -4,9 +4,21 @@
 #include <GLES3/gl31.h>
 #include <chrono>
 #include <sys/sysinfo.h>
+#include <fstream>
+#include <cstdio>
 
 #define TAG "V-Viewer"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+
+// مسجل أخطاء إلى ملف خارجي
+static void log_to_file(const char* msg) {
+    std::ofstream log("/sdcard/vviewer_debug.log", std::ios::app);
+    if (log.is_open()) {
+        log << msg << std::endl;
+        log.close();
+    }
+}
 
 // تعريف بسيط للـ Theme (forward declaration) – المحتوى الحقيقي في theme.cpp
 struct Theme;
@@ -37,7 +49,6 @@ static void render_frame() {
         // تعديل الجودة تلقائياً حسب FPS – يمكن استدعاء دالة من theme.cpp لاحقاً
     }
     Theme* theme = get_current_theme();
-    // الوصول لحقول bg_r... الخ موجودة في theme.cpp، هنا نستخدم المؤشر فقط
     // للتبسيط نضع ألوان افتراضية في حال عدم وجود الثيم
     glClearColor(0.05f, 0.0f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -49,6 +60,7 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
             last_frame = std::chrono::high_resolution_clock::now();
             auto_detect_quality();
             LOGI("V-Viewer initialized, quality: %d", get_current_quality());
+            log_to_file("V-Viewer initialized successfully");
             break;
         case APP_CMD_TERM_WINDOW:
             break;
@@ -56,15 +68,26 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
 }
 
 extern "C" void android_main(struct android_app* app) {
-    app->onAppCmd = handle_cmd;
-    set_theme(0); // Classic Black
-    LOGI("V-Viewer starting...");
-    while (true) {
-        int ident, events;
-        android_poll_source* source;
-        while ((ident = ALooper_pollAll(0, nullptr, &events, (void**)&source)) >= 0) {
-            if (source != nullptr) source->process(app, source);
+    // تسجيل أي خطأ يحدث أثناء البدء
+    try {
+        app->onAppCmd = handle_cmd;
+        set_theme(0); // Classic Black
+        LOGI("V-Viewer starting...");
+        log_to_file("V-Viewer main loop started");
+        
+        while (true) {
+            int ident, events;
+            android_poll_source* source;
+            while ((ident = ALooper_pollAll(0, nullptr, &events, (void**)&source)) >= 0) {
+                if (source != nullptr) source->process(app, source);
+            }
+            render_frame();
         }
-        render_frame();
+    } catch (const std::exception& e) {
+        LOGE("Exception in main: %s", e.what());
+        log_to_file(std::string("FATAL: ") + e.what());
+    } catch (...) {
+        LOGE("Unknown exception in main");
+        log_to_file("FATAL: unknown exception");
     }
 }

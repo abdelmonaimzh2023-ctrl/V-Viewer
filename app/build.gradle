@@ -46,10 +46,6 @@ android {
     }
 }
 
-configurations.all {
-    exclude group: 'org.jetbrains.kotlin'
-}
-
+// لا تبعيات خارجية
 dependencies {
-    implementation 'androidx.core:core:1.12.0'
 }

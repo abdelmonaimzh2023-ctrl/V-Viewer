@@ -5,7 +5,6 @@
 #define TAG "V-Viewer-Theme"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
 
-// ========== هيكل الثيم الكلاسيكي ==========
 struct Theme {
     std::string name;
     float bg_r, bg_g, bg_b;
@@ -16,7 +15,6 @@ struct Theme {
     float transparency;
 };
 
-// ========== مستويات الجودة ==========
 enum QualityLevel {
     QUALITY_ULTRA  = 0,
     QUALITY_HIGH   = 1,
@@ -32,17 +30,16 @@ struct QualitySettings {
 };
 
 QualitySettings quality_presets[] = {
-    {120, true,  true,  true,  true,  true,  24},  // ULTRA
-    {60,  true,  true,  true,  true,  true,  24},  // HIGH
-    {45,  false, true,  true,  false, true,  16},  // MEDIUM
-    {30,  false, false, false, false, true,  16},  // LOW
-    {15,  false, false, false, false, false, 8}    // MIN
+    {120, true,  true,  true,  true,  true,  24},
+    {60,  true,  true,  true,  true,  true,  24},
+    {45,  false, true,  true,  false, true,  16},
+    {30,  false, false, false, false, true,  16},
+    {15,  false, false, false, false, false, 8}
 };
 
 static int current_quality = QUALITY_HIGH;
 static QualitySettings* active_quality = &quality_presets[QUALITY_HIGH];
 
-// ========== الثيمات الكلاسيكية ==========
 Theme themes[] = {
     {
         "Classic Black",
@@ -97,61 +94,63 @@ Theme themes[] = {
 static int current_theme = 0;
 static Theme* active_theme = &themes[0];
 
-// ========== دوال الجودة ==========
-void set_quality(int level) {
-    if (level >= QUALITY_ULTRA && level <= QUALITY_MIN) {
-        current_quality = level;
-        active_quality = &quality_presets[level];
-    }
-}
-
-extern "C" void auto_detect_quality() {
-    int cores = get_nprocs_conf();
-    if (cores >= 8)       set_quality(QUALITY_ULTRA);
-    else if (cores >= 6)  set_quality(QUALITY_HIGH);
-    else if (cores >= 4)  set_quality(QUALITY_MEDIUM);
-    else if (cores >= 2)  set_quality(QUALITY_LOW);
-    else                  set_quality(QUALITY_MIN);
-    LOGI("Auto quality: %d cores -> level %d", cores, current_quality);
-}
-
-// ========== دوال الثيمات ==========
-extern "C" Theme* get_current_theme() {
-    return active_theme;
-}
-
-extern "C" bool set_theme(int index) {
-    int count = sizeof(themes) / sizeof(themes[0]);
-    if (index >= 0 && index < count) {
-        current_theme = index;
-        active_theme = &themes[index];
-        LOGI("Theme set to: %s", active_theme->name.c_str());
-        return true;
-    }
-    return false;
-}
-
-extern "C" bool set_theme_by_name(const char* name) {
-    int count = sizeof(themes) / sizeof(themes[0]);
-    for (int i = 0; i < count; i++) {
-        if (themes[i].name == std::string(name)) {
-            return set_theme(i);
+extern "C" {
+    void set_quality(int level) {
+        if (level >= QUALITY_ULTRA && level <= QUALITY_MIN) {
+            current_quality = level;
+            active_quality = &quality_presets[level];
         }
     }
-    return false;
-}
 
-extern "C" const char* get_theme_name() {
-    return active_theme->name.c_str();
-}
+    void auto_detect_quality() {
+        int cores = get_nprocs_conf();
+        if (cores >= 8)       set_quality(QUALITY_ULTRA);
+        else if (cores >= 6)  set_quality(QUALITY_HIGH);
+        else if (cores >= 4)  set_quality(QUALITY_MEDIUM);
+        else if (cores >= 2)  set_quality(QUALITY_LOW);
+        else                  set_quality(QUALITY_MIN);
+        LOGI("Auto quality: %d cores -> level %d", cores, current_quality);
+    }
 
-extern "C" int get_theme_count() {
-    return sizeof(themes) / sizeof(themes[0]);
-}
+    Theme* get_current_theme() {
+        return active_theme;
+    }
 
-extern "C" int get_current_quality() {
-    return current_quality;
-extern "C" float get_bg_r() { return active_theme->bg_r; }
-extern "C" float get_bg_g() { return active_theme->bg_g; }
-extern "C" float get_bg_b() { return active_theme->bg_b; }
+    bool set_theme(int index) {
+        int count = sizeof(themes) / sizeof(themes[0]);
+        if (index >= 0 && index < count) {
+            current_theme = index;
+            active_theme = &themes[index];
+            LOGI("Theme set to: %s", active_theme->name.c_str());
+            return true;
+        }
+        return false;
+    }
+
+    bool set_theme_by_name(const char* name) {
+        int count = sizeof(themes) / sizeof(themes[0]);
+        for (int i = 0; i < count; i++) {
+            if (themes[i].name == std::string(name)) {
+                return set_theme(i);
+            }
+        }
+        return false;
+    }
+
+    const char* get_theme_name() {
+        return active_theme->name.c_str();
+    }
+
+    int get_theme_count() {
+        return sizeof(themes) / sizeof(themes[0]);
+    }
+
+    int get_current_quality() {
+        return current_quality;
+    }
+
+    // دوال الألوان المباشرة
+    float get_bg_r() { return active_theme->bg_r; }
+    float get_bg_g() { return active_theme->bg_g; }
+    float get_bg_b() { return active_theme->bg_b; }
 }

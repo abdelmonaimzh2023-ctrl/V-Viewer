@@ -5,7 +5,6 @@
 #include <android/input.h>
 #include <cmath>
 #include <jni.h>
-#include <cstdlib>
 #include "wayland_client.h"
 
 #define TAG "V-Viewer"
@@ -19,8 +18,8 @@ extern "C" {
 static EGLDisplay display;
 static EGLSurface surface;
 static EGLContext context;
-static GLuint program = 0, bloom_program = 0;
-static GLint uColorLoc = -1, uTimeLoc = -1;
+static GLuint program = 0;
+static GLint uColorLoc = -1;
 
 static int screen_w = 1920, screen_h = 1080;
 static float anim_time = 0.0f;
@@ -30,20 +29,6 @@ static float gear_cx, gear_cy, gear_r;
 static bool gear_pressed = false;
 static float term_cx, term_cy;
 static bool connected = false;
-
-// جسيمات الخلفية
-struct Particle { float x, y, speed, size, phase; };
-static Particle particles[50];
-
-static void init_particles() {
-    for (int i = 0; i < 50; i++) {
-        particles[i].x = (rand() % 200 - 100) / 100.0f;
-        particles[i].y = (rand() % 200 - 100) / 100.0f;
-        particles[i].speed = 0.1f + (rand() % 30) / 100.0f;
-        particles[i].size = 0.002f + (rand() % 5) / 1000.0f;
-        particles[i].phase = (rand() % 628) / 100.0f;
-    }
-}
 
 static void update_layout() {
     gear_r = bar_h * 0.5f;
@@ -56,7 +41,6 @@ static void update_layout() {
 static float to_ndc_x(float px) { return (px / screen_w) * 2.0f - 1.0f; }
 static float to_ndc_y(float py) { return 1.0f - (py / screen_h) * 2.0f; }
 
-// Shaders
 const char* vs_src = R"(#version 310 es
 precision highp float;
 layout(location=0) in vec2 pos;
@@ -67,34 +51,6 @@ precision mediump float;
 uniform vec4 uColor;
 out vec4 fragColor;
 void main() { fragColor = uColor; })";
-
-const char* bloom_vs = R"(#version 310 es
-precision highp float;
-layout(location=0) in vec2 pos;
-out vec2 uv;
-void main() {
-    gl_Position = vec4(pos,0,1);
-    uv = pos * 0.5 + 0.5;
-})";
-
-const char* bloom_fs = R"(#version 310 es
-precision mediump float;
-in vec2 uv;
-uniform float uTime;
-out vec4 fragColor;
-
-vec3 neonGlow(float dist, vec3 color) {
-    return color * exp(-dist * 4.0) * (0.8 + 0.4 * sin(uTime * 2.0));
-}
-
-void main() {
-    vec2 p = uv * 2.0 - 1.0;
-    float d = length(p);
-    float brightness = 0.015 / (d + 0.15);
-    vec3 base = vec3(0.4, 0.2, 0.8); // بنفسجي
-    vec3 glow = neonGlow(d, base) * brightness;
-    fragColor = vec4(glow * 0.3, 1.0);
-})";
 
 static GLuint load_shader(GLenum type, const char* src) {
     GLuint s = glCreateShader(type);
@@ -109,15 +65,8 @@ static void init_shaders() {
     program = glCreateProgram();
     glAttachShader(program, vs); glAttachShader(program, fs);
     glLinkProgram(program);
+    glDeleteShader(vs); glDeleteShader(fs);
     uColorLoc = glGetUniformLocation(program, "uColor");
-
-    GLuint bvs = load_shader(GL_VERTEX_SHADER, bloom_vs);
-    GLuint bfs = load_shader(GL_FRAGMENT_SHADER, bloom_fs);
-    bloom_program = glCreateProgram();
-    glAttachShader(bloom_program, bvs); glAttachShader(bloom_program, bfs);
-    glLinkProgram(bloom_program);
-    uTimeLoc = glGetUniformLocation(bloom_program, "uTime");
-    glDeleteShader(vs); glDeleteShader(fs); glDeleteShader(bvs); glDeleteShader(bfs);
 }
 
 static void draw_line(float x1, float y1, float x2, float y2, float t, float r, float g, float b, float a) {
@@ -165,11 +114,10 @@ static void draw_circle(float cx, float cy, float r, float red, float green, flo
 static void draw_gear(float cx, float cy, float r, float r_color, float g_color, float b_color) {
     float sq = r * 1.6f;
     draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.1f, 0.1f, 0.15f, 0.6f);
-    float glow = 0.5f + 0.2f * sinf(anim_time * 2.0f);
-    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.003f, r_color, g_color, b_color, glow);
-    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.003f, r_color, g_color, b_color, glow);
-    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, r_color, g_color, b_color, glow);
-    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.003f, r_color, g_color, b_color, glow);
+    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.003f, r_color, g_color, b_color, 0.6f);
+    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.003f, r_color, g_color, b_color, 0.6f);
+    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, r_color, g_color, b_color, 0.6f);
+    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.003f, r_color, g_color, b_color, 0.6f);
     draw_circle(cx, cy, r, r_color, g_color, b_color, 1.0f);
     float t = r*0.25f; float len = r*0.6f;
     draw_line(cx, cy+len, cx, cy+r*0.9f, t, 0.05f, 0.05f, 0.08f, 1.0f);
@@ -181,11 +129,10 @@ static void draw_gear(float cx, float cy, float r, float r_color, float g_color,
 static void draw_terminal_icon(float cx, float cy, float r) {
     float sq = r * 1.6f;
     draw_rect(cx - sq, cy + sq, sq*2, sq*2, 0.1f, 0.1f, 0.15f, 0.6f);
-    float glow = 0.5f + 0.2f * sinf(anim_time * 2.0f + 1.0f);
-    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
-    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
-    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
-    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.003f, 0.6f, 0.8f, 1.0f, glow);
+    draw_line(cx - sq, cy + sq, cx + sq, cy + sq, 0.003f, 0.6f, 0.8f, 1.0f, 0.6f);
+    draw_line(cx + sq, cy + sq, cx + sq, cy - sq, 0.003f, 0.6f, 0.8f, 1.0f, 0.6f);
+    draw_line(cx + sq, cy - sq, cx - sq, cy - sq, 0.003f, 0.6f, 0.8f, 1.0f, 0.6f);
+    draw_line(cx - sq, cy - sq, cx - sq, cy + sq, 0.003f, 0.6f, 0.8f, 1.0f, 0.6f);
     draw_line(cx - r*0.5f, cy + r*0.5f, cx + r*0.7f, cy + r*0.5f, 0.02f, 0.0f, 1.0f, 1.0f, 1.0f);
     draw_line(cx - r*0.3f, cy, cx + r*0.3f, cy, 0.02f, 1.0f, 1.0f, 1.0f, 1.0f);
     draw_line(cx, cy - r*0.5f, cx + r*0.7f, cy - r*0.5f, 0.02f, 0.0f, 1.0f, 1.0f, 1.0f);
@@ -233,11 +180,11 @@ static void init_egl(ANativeWindow* window) {
     const EGLint ctxAtt[]={EGL_CONTEXT_CLIENT_VERSION,3,EGL_NONE};
     context = eglCreateContext(display,cfg,NULL,ctxAtt); eglMakeCurrent(display,surface,surface,context);
     glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    init_shaders(); update_layout(); init_particles(); try_connect();
+    init_shaders(); update_layout(); try_connect();
 }
 
 static void term_egl() {
-    if(program) glDeleteProgram(program); if(bloom_program) glDeleteProgram(bloom_program);
+    if(program) glDeleteProgram(program);
     eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
     if(surface) eglDestroySurface(display,surface); if(context) eglDestroyContext(display,context);
     eglTerminate(display); display=EGL_NO_DISPLAY;
@@ -245,26 +192,8 @@ static void term_egl() {
 
 static void draw_frame() {
     anim_time += 0.016f;
+    glClearColor(get_bg_r(), get_bg_g(), get_bg_b(), 1.0f); glClear(GL_COLOR_BUFFER_BIT);
 
-    // Bloom background
-    glUseProgram(bloom_program);
-    glUniform1f(uTimeLoc, anim_time);
-    float bv[] = { -1,-1, 1,-1, -1,1, 1,1 };
-    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,0,bv); glEnableVertexAttribArray(0);
-    glDrawArrays(GL_TRIANGLE_STRIP,0,4); glDisableVertexAttribArray(0);
-
-    // خلفية داكنة
-    glClearColor(get_bg_r(), get_bg_g(), get_bg_b(), 0.9f); glClear(GL_COLOR_BUFFER_BIT);
-
-    // جسيمات
-    for (int i=0; i<50; i++) {
-        particles[i].y += particles[i].speed * 0.005f;
-        if (particles[i].y > 1.2f) { particles[i].y = -1.2f; particles[i].x = (rand()%200-100)/100.0f; }
-        float alpha = 0.15f + 0.1f * sinf(anim_time * 3.0f + particles[i].phase);
-        draw_circle(particles[i].x, particles[i].y, particles[i].size, 0.6f, 0.4f, 1.0f, alpha);
-    }
-
-    // شريط علوي زجاجي
     draw_rect(-1.0f, 1.0f, 2.0f, bar_h, 0.05f, 0.05f, 0.07f, 0.85f);
     float glow = 0.4f + 0.2f * sinf(anim_time * 1.5f);
     draw_line(-1.0f, 1.0f - bar_h, 1.0f, 1.0f - bar_h, 0.002f, get_accent_r(), get_accent_g(), get_accent_b(), glow);

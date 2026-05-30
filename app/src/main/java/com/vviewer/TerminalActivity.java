@@ -8,7 +8,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.io.*;
 
 public class TerminalActivity extends Activity {
@@ -31,8 +30,6 @@ public class TerminalActivity extends Activity {
         Button sendBtn = findViewById(R.id.sendBtn);
 
         appendOutput("V-Viewer Terminal v1.0\n");
-        appendOutput("=======================\n");
-
         startUbuntuSession();
 
         sendBtn.setOnClickListener(v -> {
@@ -54,81 +51,36 @@ public class TerminalActivity extends Activity {
             String ubuntuPath = getFilesDir() + "/ubuntu";
             String prootPath = getFilesDir() + "/proot";
 
-            appendOutput("Files dir: " + getFilesDir().getAbsolutePath() + "\n");
-
-            // 1. التأكد من proot وتصحيح صلاحياته
+            // نسخ proot إذا لم يكن موجوداً
             File prootFile = new File(prootPath);
             if (!prootFile.exists() || prootFile.length() == 0) {
-                appendOutput("Installing proot...\n");
+                appendOutput("Copying proot...\n");
                 InputStream in = getAssets().open("proot");
                 FileOutputStream out = new FileOutputStream(prootFile);
                 byte[] buf = new byte[8192];
                 int len;
-                while ((len = in.read(buf)) > 0) {
-                    out.write(buf, 0, len);
-                }
-                in.close();
-                out.close();
+                while ((len = in.read(buf)) > 0) out.write(buf, 0, len);
+                in.close(); out.close();
             }
-            prootFile.setReadable(true);
-            prootFile.setWritable(true);
-            prootFile.setExecutable(true);
-            appendOutput("proot ready (" + prootFile.length() + " bytes)\n");
 
-            // 2. التأكد من وجود Ubuntu
+            // تصحيح الصلاحيات (تنفيذ + قراءة + كتابة)
+            prootFile.setExecutable(true, false);
+            prootFile.setReadable(true, false);
+            prootFile.setWritable(true, false);
+
+            if (!prootFile.canExecute()) {
+                appendOutput("Error: Cannot execute proot\n");
+                return;
+            }
+
+            // التأكد من وجود Ubuntu
             File ubuntuDir = new File(ubuntuPath);
-            File bashFile = new File(ubuntuPath + "/bin/bash");
-            
-            if (!ubuntuDir.exists() || !bashFile.exists()) {
-                appendOutput("Ubuntu not found at: " + ubuntuPath + "\n");
-                appendOutput("bin/bash exists: " + bashFile.exists() + "\n");
-                
-                // محاولة فك الضغط إذا كانت الصورة موجودة
-                File imageFile = new File(Environment.getExternalStorageDirectory() + "/V-Viewer/rootfs.tar.gz");
-                if (imageFile.exists()) {
-                    appendOutput("Image found (" + (imageFile.length()/1024/1024) + "MB). Extracting...\n");
-                    appendOutput("This may take 5-15 minutes. Please wait...\n");
-                    
-                    ubuntuDir.mkdirs();
-                    
-                    ProcessBuilder pb = new ProcessBuilder(
-                        prootPath,
-                        "-r", ubuntuPath,
-                        "/bin/tar", "-xzf", imageFile.getAbsolutePath(),
-                        "-C", "/"
-                    );
-                    pb.redirectErrorStream(true);
-                    Process process = pb.start();
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                    String line;
-                    int count = 0;
-                    while ((line = reader.readLine()) != null) {
-                        // عرض تقدم كل 100 سطر
-                        if (count % 100 == 0) {
-                            appendOutput(".");
-                        }
-                        count++;
-                    }
-                    process.waitFor();
-                    appendOutput("\nExtraction complete. Exit code: " + process.exitValue() + "\n");
-                    
-                    if (!bashFile.exists()) {
-                        appendOutput("Error: Extraction failed. bash not found.\n");
-                        appendOutput("Check if the image is valid.\n");
-                        return;
-                    }
-                } else {
-                    appendOutput("Error: No Ubuntu image found at " + imageFile.getAbsolutePath() + "\n");
-                    appendOutput("Please install from Settings first.\n");
-                    return;
-                }
-            } else {
-                appendOutput("Ubuntu found at: " + ubuntuPath + "\n");
+            if (!ubuntuDir.exists() || !new File(ubuntuPath + "/bin").exists()) {
+                appendOutput("Ubuntu not installed. Please use Settings first.\n");
+                return;
             }
 
-            // 3. تشغيل الجلسة
-            appendOutput("Starting Ubuntu session...\n");
-            
+            appendOutput("Starting Ubuntu...\n");
             ProcessBuilder pb = new ProcessBuilder(
                 prootPath,
                 "-r", ubuntuPath,
@@ -155,15 +107,9 @@ public class TerminalActivity extends Activity {
                 }
             });
             outputThread.start();
-
-            appendOutput("Ubuntu session started!\n");
-            appendOutput("root@localhost:~# \n");
-            
+            appendOutput("Ubuntu started!\n");
         } catch (Exception e) {
             appendOutput("Error: " + e.getMessage() + "\n");
-            StringWriter sw = new StringWriter();
-            e.printStackTrace(new PrintWriter(sw));
-            appendOutput(sw.toString() + "\n");
         }
     }
 
@@ -177,11 +123,7 @@ public class TerminalActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (ubuntuProcess != null) {
-            ubuntuProcess.destroy();
-        }
-        if (outputThread != null) {
-            outputThread.interrupt();
-        }
+        if (ubuntuProcess != null) ubuntuProcess.destroy();
+        if (outputThread != null) outputThread.interrupt();
     }
 }
